@@ -118,6 +118,17 @@ h1, h2 { margin: 0; }
   .edit-button { opacity: 1; }
 }
 
+/* 대화 목록: 평소에는 마지막 채팅 시간, 마우스 오버·키보드 포커스 시 시간 대신 수정·삭제 버튼 */
+#conversation-list .edit-button, #conversation-list .delete-button { display: none; opacity: 1; }
+#conversation-list li:hover .edit-button, #conversation-list li:focus-within .edit-button,
+#conversation-list li:hover .delete-button, #conversation-list li:focus-within .delete-button { display: block; }
+#conversation-list li:hover .row-time, #conversation-list li:focus-within .row-time { display: none; }
+
+@media (hover: none) {
+  #conversation-list .edit-button, #conversation-list .delete-button { display: block; }
+  #conversation-list .row-time { display: none; }
+}
+
 .rename-input {
   flex: 1;
   min-width: 0;
