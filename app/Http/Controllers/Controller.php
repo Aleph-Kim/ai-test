@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\NvidiaEmbeddingService;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -17,7 +18,7 @@ abstract class Controller
         $status = $request instanceof RequestException ? $request->response->status() : null;
 
         Log::error("AI {$action} 실패", [
-            'provider' => config('ai.default'),
+            'provider' => NvidiaEmbeddingService::PROVIDER,
             'status' => $status,
             ...$context,
             'exception' => $e,

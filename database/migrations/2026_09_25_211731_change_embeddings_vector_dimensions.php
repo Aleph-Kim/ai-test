@@ -16,7 +16,7 @@ return new class extends Migration
         DB::table('embeddings')->delete();
 
         Schema::table('embeddings', function (Blueprint $table) {
-            $table->vector('vector', dimensions: config('ai.rag.dimensions'))->change();
+            $table->vector('vector', dimensions: config('services.nvidia.embedding_dimensions'))->change();
         });
     }
 

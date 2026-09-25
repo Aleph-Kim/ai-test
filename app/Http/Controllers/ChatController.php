@@ -5,30 +5,22 @@ namespace App\Http\Controllers;
 use App\Models\Chunk;
 use App\Models\Conversation;
 use App\Models\Document;
-use App\Models\Embedding;
 use App\Models\Message;
+use App\Services\NvidiaChatService;
+use App\Services\NvidiaEmbeddingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Http\StreamedEvent;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Laravel\Ai\Messages\AssistantMessage;
-use Laravel\Ai\Messages\UserMessage;
-use Laravel\Ai\Streaming\Events\Error as StreamError;
-use Laravel\Ai\Streaming\Events\TextDelta;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
 
-use function Laravel\Ai\agent;
-
 class ChatController extends Controller
 {
     private const HISTORY_LIMIT = 10;
-
-    // 스트리밍 요청 전체에 걸리는 제한이므로 긴 답변도 끊기지 않도록 SDK 기본값(60초)보다 길게 설정
-    private const STREAM_TIMEOUT = 120;
 
     // 모델이 답변 끝에 붙이는 사전 질문 블록의 시작 표시 (화면에는 질문 카드로만 노출)
     private const CLARIFY_MARKER = '[[사전질문]]';
@@ -147,6 +139,11 @@ class ChatController extends Controller
         );
     }
 
+    public function __construct(
+        private NvidiaChatService $chat,
+        private NvidiaEmbeddingService $embeddings,
+    ) {}
+
     public function ask(Request $request, Conversation $conversation): StreamedResponse
     {
         $startedAt = hrtime(true);
@@ -156,7 +153,7 @@ class ChatController extends Controller
         // 저장된 오류 메시지는 화면 기록용이므로 모델 대화 기록과 검색어에서 제외
         $recent = $conversation->messages()->whereIn('role', ['user', 'assistant'])->latest('id')->limit(self::HISTORY_LIMIT)->get();
         $history = $recent->reverse()
-            ->map(fn (Message $m) => $m->role === 'user' ? new UserMessage($m->content) : new AssistantMessage($this->historyContent($m)))
+            ->map(fn (Message $m) => ['role' => $m->role, 'content' => $m->role === 'user' ? $m->content : $this->historyContent($m)])
             ->values()
             ->all();
         $searchQuery = $this->searchQuery($recent, $question);
@@ -166,7 +163,7 @@ class ChatController extends Controller
         $conversation->messages()->create(['role' => 'user', 'content' => $question]);
 
         return response()->eventStream(function () use ($conversation, $question, $searchQuery, $answered, $history, $startedAt) {
-            // 웹 요청 기본 실행 제한(30초)에 걸리면 오류 이벤트 없이 강제 종료되므로 해제 (대기 한도는 STREAM_TIMEOUT)
+            // 웹 요청 기본 실행 제한(30초)에 걸리면 오류 이벤트 없이 강제 종료되므로 해제 (대기 한도는 채팅 서비스 타임아웃)
             set_time_limit(0);
 
             try {
@@ -176,17 +173,20 @@ class ChatController extends Controller
                 $today = now()->locale('ko')->isoFormat('YYYY년 M월 D일 dddd');
                 // 가벼운 모델이 오늘 날짜를 무시하고 학습 시점 날짜로 계산하는 경우가 있어 맨 앞과 조항 앞에 모두 명시
                 $instructions = "오늘 날짜는 {$today}입니다.\n\n".self::INSTRUCTIONS.$answered."\n\n[오늘 날짜]\n{$today}\n\n[규정 조항]\n".$clauses;
-                $stream = agent($instructions, $history)->stream($question, timeout: self::STREAM_TIMEOUT);
+                $messages = [
+                    ['role' => 'system', 'content' => $instructions],
+                    ...$history,
+                    ['role' => 'user', 'content' => $question],
+                ];
 
                 $answer = '';
-                foreach ($stream as $event) {
-                    if ($event instanceof StreamError) {
-                        throw new RuntimeException($event->message);
-                    }
-                    if ($event instanceof TextDelta) {
-                        $answer .= $event->delta;
-                        yield $this->event('delta', $event->delta);
-                    }
+                foreach ($this->chat->stream($messages) as $delta) {
+                    $answer .= $delta;
+                    yield $this->event('delta', $delta);
+                }
+                // 빈 답변을 정상 답변으로 저장하면 화면에 빈 말풍선만 남으므로 오류로 처리
+                if (trim($answer) === '') {
+                    throw new RuntimeException('AI 공급자가 빈 답변을 반환했습니다.');
                 }
             } catch (Throwable $e) {
                 // 새로고침 후에도 대화에 실패 기록이 남도록 오류 메시지로 저장
@@ -210,8 +210,8 @@ class ChatController extends Controller
                 'calculation' => $calculation,
                 'citations' => $citations,
                 'clarifications' => $clarifications,
-                'provider' => config('ai.default'),
-                'model' => config('ai.providers.'.config('ai.default').'.models.text.default'),
+                'provider' => NvidiaEmbeddingService::PROVIDER,
+                'model' => $this->chat->model(),
                 'elapsed_ms' => intdiv(hrtime(true) - $startedAt, 1_000_000),
             ]);
             yield $this->event('done', [
@@ -231,21 +231,21 @@ class ChatController extends Controller
      */
     private function search(int $documentId, string $question): Collection
     {
-        $provider = Embedding::provider();
-        $model = Embedding::modelName();
+        $provider = NvidiaEmbeddingService::PROVIDER;
+        $model = $this->embeddings->model();
 
         // 공급자·모델 변경 후 아직 벡터가 없는 조항만 현재 모델로 임베딩 (다른 모델 벡터와의 비교는 무의미)
         $missing = Chunk::where('document_id', $documentId)
             ->whereDoesntHave('embeddings', fn ($q) => $q->where('provider', $provider)->where('model', $model))
             ->get();
         if ($missing->isNotEmpty()) {
-            $vectors = Embedding::generate($missing->pluck('text')->all(), 'passage');
+            $vectors = $this->embeddings->embedPassages($missing->pluck('text')->all());
             foreach ($missing->values() as $i => $chunk) {
                 $chunk->embeddings()->create(['provider' => $provider, 'model' => $model, 'vector' => $vectors[$i]]);
             }
         }
 
-        $query = Embedding::generate([$question], 'query')[0];
+        $query = $this->embeddings->embedQuery($question);
 
         return DB::table('embeddings')
             ->join('chunks', 'chunks.id', '=', 'embeddings.chunk_id')
@@ -255,7 +255,7 @@ class ChatController extends Controller
             ->select('chunks.id as chunk_id', 'chunks.label', 'chunks.text')
             ->selectVectorDistance('embeddings.vector', $query, 'distance')
             ->orderByVectorDistance('embeddings.vector', $query)
-            ->limit(config('ai.rag.top_k'))
+            ->limit(config('rag.top_k'))
             ->get()
             ->map(fn (object $row) => [
                 'chunk_id' => $row->chunk_id,
@@ -277,7 +277,7 @@ class ChatController extends Controller
         preg_match_all('/제\s*\d+\s*조(?:의\s*\d+)?/u', $content, $cited);
         $articles = array_values(array_unique(array_map(fn (string $a) => preg_replace('/\s+/u', '', $a), $cited[0])));
         if ($articles === []) {
-            return $found->where('score', '>=', config('ai.rag.min_similarity'))->values()->all();
+            return $found->where('score', '>=', config('rag.min_similarity'))->values()->all();
         }
         $articleOf = fn (string $label) => preg_match('/^제\s*\d+\s*조(?:의\s*\d+)?/u', $label, $m) ? preg_replace('/\s+/u', '', $m[0]) : null;
 

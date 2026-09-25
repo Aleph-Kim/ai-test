@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Chunk;
 use App\Models\Document;
-use App\Models\Embedding;
+use App\Services\NvidiaEmbeddingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -19,7 +19,7 @@ class DocumentController extends Controller
         return response()->json(Document::latest('id')->get(['id', 'title', 'filename', 'created_at']));
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, NvidiaEmbeddingService $embeddings): JsonResponse
     {
         $validated = $request->validate([
             'title' => ['nullable', 'string', 'max:255'],
@@ -44,14 +44,14 @@ class DocumentController extends Controller
 
         // 임베딩 성공 후에만 저장하여 실패 시 문서가 남지 않도록 처리
         try {
-            $vectors = Embedding::generate(array_column($chunks, 'text'), 'passage');
+            $vectors = $embeddings->embedPassages(array_column($chunks, 'text'));
         } catch (Throwable $e) {
             $message = $this->aiFailure($e, '조항 임베딩', ['filename' => $file->getClientOriginalName()]);
 
             return response()->json(['message' => $message], 502);
         }
 
-        $document = DB::transaction(function () use ($validated, $file, $content, $chunks, $vectors) {
+        $document = DB::transaction(function () use ($validated, $file, $content, $chunks, $vectors, $embeddings) {
             $document = Document::create([
                 'title' => $validated['title'] ?? $file->getClientOriginalName(),
                 'filename' => $file->getClientOriginalName(),
@@ -60,8 +60,8 @@ class DocumentController extends Controller
 
             foreach ($chunks as $seq => $chunk) {
                 $document->chunks()->create(['seq' => $seq, ...$chunk])->embeddings()->create([
-                    'provider' => Embedding::provider(),
-                    'model' => Embedding::modelName(),
+                    'provider' => NvidiaEmbeddingService::PROVIDER,
+                    'model' => $embeddings->model(),
                     'vector' => $vectors[$seq],
                 ]);
             }

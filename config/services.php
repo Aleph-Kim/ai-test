@@ -35,4 +35,13 @@ return [
         ],
     ],
 
+    'nvidia' => [
+        'api_key' => env('NVIDIA_NIM_API_KEY'),
+        'base_url' => env('NVIDIA_NIM_BASE_URL', 'https://integrate.api.nvidia.com/v1'),
+        'chat_model' => env('NVIDIA_NIM_CHAT_MODEL', 'google/gemma-4-31b-it'),
+        'embedding_model' => env('NVIDIA_NIM_EMBEDDING_MODEL', 'nvidia/nemotron-3-embed-1b'),
+        // embeddings.vector 컬럼 차원과 같아야 함
+        'embedding_dimensions' => (int) env('NVIDIA_NIM_EMBEDDING_DIMENSIONS', 2048),
+    ],
+
 ];

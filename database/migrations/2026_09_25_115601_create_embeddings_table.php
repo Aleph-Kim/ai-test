@@ -17,7 +17,7 @@ return new class extends Migration
             $table->string('provider', 20);
             $table->string('model');
             // 공급자·모델별 벡터를 한 컬럼에 저장하므로 모든 임베딩 모델이 같은 차원이어야 함
-            $table->vector('vector', dimensions: config('ai.rag.dimensions'));
+            $table->vector('vector', dimensions: config('services.nvidia.embedding_dimensions'));
             $table->unique(['chunk_id', 'provider', 'model']);
         });
     }

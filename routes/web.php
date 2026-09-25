@@ -14,8 +14,8 @@ Route::get('/', function (Request $request) {
     }
 
     return view('chat', [
-        'provider' => config('ai.default'),
-        'chatModel' => config('ai.providers.'.config('ai.default').'.models.text.default'),
+        'provider' => 'nvidia',
+        'chatModel' => config('services.nvidia.chat_model'),
     ]);
 });
 
