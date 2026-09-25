@@ -26,7 +26,8 @@ class NvidiaChatService
         $response = Http::withToken(config('services.nvidia.api_key'))
             ->timeout(self::STREAM_TIMEOUT)
             ->connectTimeout(5)
-            ->withOptions(['stream' => true])
+            // 스트리밍 핸들러는 read_timeout이 없으면 첫 응답을 60초만 기다리고 끊음
+            ->withOptions(['stream' => true, 'read_timeout' => self::STREAM_TIMEOUT])
             ->post(config('services.nvidia.base_url').'/chat/completions', [
                 'model' => $this->model(),
                 'messages' => $messages,
