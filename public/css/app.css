@@ -41,6 +41,9 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
   font-size: 16px;
   line-height: 1.5;
+  /* 한국어가 글자 단위로 끊기지 않도록 띄어쓰기 기준 줄바꿈, 긴 영문·주소만 강제로 끊음 */
+  word-break: keep-all;
+  overflow-wrap: anywhere;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -310,7 +313,6 @@ input[type="file"] { width: 100%; font-size: 0.85rem; color: var(--secondary-lab
   padding: 9px 14px;
   border-radius: var(--bubble-radius);
   white-space: pre-wrap;
-  word-break: break-word;
 }
 
 .message.user .bubble { background: var(--accent); color: #fff; border-bottom-right-radius: 6px; }
