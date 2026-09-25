@@ -158,11 +158,12 @@ class ChatController extends Controller
             ->values()
             ->all();
         $searchQuery = $this->searchQuery($recent, $question);
+        $answered = $this->answeredClarification($recent, $question);
 
         // 스트림 중 오류가 나도 질문은 남도록 먼저 저장
         $conversation->messages()->create(['role' => 'user', 'content' => $question]);
 
-        return response()->eventStream(function () use ($conversation, $question, $searchQuery, $history, $startedAt) {
+        return response()->eventStream(function () use ($conversation, $question, $searchQuery, $answered, $history, $startedAt) {
             // 웹 요청 기본 실행 제한(30초)에 걸리면 오류 이벤트 없이 강제 종료되므로 해제 (대기 한도는 STREAM_TIMEOUT)
             set_time_limit(0);
 
@@ -171,7 +172,7 @@ class ChatController extends Controller
 
                 $clauses = $found->map(fn (array $c) => "### {$c['label']}\n{$c['text']}")->join("\n\n");
                 $today = now()->locale('ko')->isoFormat('YYYY년 M월 D일 dddd');
-                $instructions = self::INSTRUCTIONS."\n\n[오늘 날짜]\n{$today}\n\n[규정 조항]\n".$clauses;
+                $instructions = self::INSTRUCTIONS.$answered."\n\n[오늘 날짜]\n{$today}\n\n[규정 조항]\n".$clauses;
                 $stream = agent($instructions, $history)->stream($question, timeout: self::STREAM_TIMEOUT);
 
                 $answer = '';
@@ -312,16 +313,40 @@ class ChatController extends Controller
         return implode("\n", $parts);
     }
 
-    // 사전 질문 목록은 본문과 따로 저장되므로 모델이 이전에 무엇을 물었는지 알 수 있게 대화 기록에 다시 포함
+    // 사전 질문 목록은 본문과 따로 저장되므로 원래 출력 형식(표시 블록)으로 대화 기록에 다시 포함
+    // (본문 목록으로 넣으면 모델이 직원 답변 뒤에도 그 답변을 그대로 복사해 같은 질문을 반복함)
     private function historyContent(Message $message): string
     {
         if (empty($message->clarifications)) {
             return $message->content;
         }
 
-        $questions = collect($message->clarifications)->map(fn (array $c) => '- '.$c['question'])->join("\n");
+        return "{$message->content}\n\n".self::CLARIFY_MARKER."\n".$this->clarificationLines($message->clarifications);
+    }
 
-        return "{$message->content}\n{$questions}";
+    private function clarificationLines(array $clarifications): string
+    {
+        return collect($clarifications)
+            ->map(fn (array $c) => '- '.implode(' | ', [$c['question'], ...$c['options']]))
+            ->join("\n");
+    }
+
+    /**
+     * 직전 답변이 사전 질문이면 물은 질문과 직원 답변을 프롬프트에 명시 (같은 질문 반복 방지)
+     *
+     * @param  Collection<int, Message>  $recent  최신순 메시지
+     */
+    private function answeredClarification(Collection $recent, string $question): string
+    {
+        $last = $recent->first();
+        if ($last?->role !== 'assistant' || empty($last->clarifications)) {
+            return '';
+        }
+
+        return "\n\n[직전에 물은 사전 질문과 직원 답변]\n"
+            .$this->clarificationLines($last->clarifications)
+            ."\n직원 답변: {$question}\n"
+            .'직원이 이미 답한 내용은 다시 묻지 않습니다. 이 답변으로 결론을 쓰고, 답변에 없는 정보가 꼭 필요할 때만 그 정보만 새로 묻습니다.';
     }
 
     /**
