@@ -224,7 +224,12 @@ function scrollToBottom() {
   el.scrollTop = el.scrollHeight;
 }
 
-// LLM 답변과 업로드 원문에 포함된 태그 실행 방지를 위해 textContent로만 출력
+// LLM 답변의 태그·스크립트 실행 방지를 위해 마크다운 변환 결과를 DOMPurify로 정리한 뒤에만 HTML로 삽입
+function setMarkdown(el, text) {
+  el.innerHTML = DOMPurify.sanitize(marked.parse(text, { breaks: true, gfm: true }));
+}
+
+// 질문은 textContent로만 출력, 답변은 정리된 마크다운 HTML로 출력
 function renderMessage(role, content, createdAt) {
   const date = createdAt ? new Date(createdAt) : null;
   if (date) appendDateDivider(date);
@@ -236,7 +241,8 @@ function renderMessage(role, content, createdAt) {
   roleEl.textContent = role === "user" ? "질문" : "답변";
   const body = document.createElement("div");
   body.className = "bubble";
-  body.textContent = content;
+  if (role === "assistant") setMarkdown(body, content);
+  else body.textContent = content;
   wrap.append(roleEl, body);
   if (date) wrap.append(timeElement("message-time", date, timeFormat));
   $("messages").append(wrap);
@@ -343,6 +349,7 @@ async function ask(event) {
 
     let citations = [];
     let failed = false;
+    let raw = "";
     await readEvents(res, (type, data) => {
       if (type === "citations") citations = data;
       if (type === "done") answer.setTime(data.created_at);
@@ -351,7 +358,8 @@ async function ask(event) {
           answer.body.classList.remove("pending");
           answer.body.textContent = "";
         }
-        answer.body.textContent += data;
+        raw += data;
+        setMarkdown(answer.body, raw);
         scrollToBottom();
       }
       if (type === "error") {

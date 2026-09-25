@@ -72,6 +72,8 @@
     </form>
   </dialog>
 
+  <script src="{{ asset('vendor/marked.umd.js') }}"></script>
+  <script src="{{ asset('vendor/purify.min.js') }}"></script>
   <script src="{{ asset('js/app.js') }}"></script>
 </body>
 </html>

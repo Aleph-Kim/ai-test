@@ -302,6 +302,23 @@ input[type="file"] { width: 100%; font-size: 0.85rem; color: var(--secondary-lab
 .message.assistant .bubble { background: var(--bubble-in); color: var(--label); border-bottom-left-radius: 6px; }
 .bubble.pending { color: var(--secondary-label); }
 
+/* 마크다운 HTML은 태그 사이 줄바꿈이 그대로 보이지 않도록 일반 공백 처리 */
+.message.assistant .bubble { white-space: normal; }
+.bubble > :first-child { margin-top: 0; }
+.bubble > :last-child { margin-bottom: 0; }
+.bubble p, .bubble ul, .bubble ol, .bubble table, .bubble pre, .bubble blockquote { margin: 0 0 8px; }
+.bubble ul, .bubble ol { padding-left: 20px; }
+.bubble li + li { margin-top: 2px; }
+.bubble h1, .bubble h2, .bubble h3, .bubble h4 { margin: 12px 0 6px; font-size: 1rem; font-weight: 700; }
+.bubble code { padding: 1px 5px; border-radius: 5px; background: var(--fill); font-size: 0.88em; }
+.bubble pre { padding: 10px 12px; border-radius: 10px; background: var(--fill); overflow-x: auto; }
+.bubble pre code { padding: 0; background: none; }
+.bubble blockquote { padding-left: 10px; border-left: 3px solid var(--separator); color: var(--secondary-label); }
+.bubble table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; font-size: 0.9em; }
+.bubble th, .bubble td { padding: 5px 9px; border: 1px solid var(--separator); text-align: left; }
+.bubble th { background: var(--fill); font-weight: 600; }
+.bubble a { color: var(--accent); }
+
 .typing { display: inline-flex; gap: 4px; padding: 6px 2px; }
 
 .typing span {
