@@ -143,7 +143,6 @@ class ChatController extends Controller
 
             try {
                 $found = $this->search($conversation->document_id, $searchQuery);
-                $citations = $found->where('score', '>=', config('ai.rag.min_similarity'))->values()->all();
 
                 $clauses = $found->map(fn (array $c) => "### {$c['label']}\n{$c['text']}")->join("\n\n");
                 $today = now()->locale('ko')->isoFormat('YYYY년 M월 D일 dddd');
@@ -174,7 +173,7 @@ class ChatController extends Controller
 
             // 되묻는 차례에는 결론이 없으므로 근거 조항 미표시
             [$content, $clarifications] = $this->splitClarifications($answer);
-            $citations = $clarifications === [] ? $citations : [];
+            $citations = $clarifications === [] ? $this->citations($conversation->document_id, $content, $found) : [];
             $message = $conversation->messages()->create([
                 'role' => 'assistant',
                 'content' => $content,
@@ -232,6 +231,36 @@ class ChatController extends Controller
                 'text' => $row->text,
                 'score' => round(1 - $row->distance, 4),
             ]);
+    }
+
+    /**
+     * 답변의 "근거:" 줄에 적힌 조항을 근거 조항으로 사용 ("근거:" 줄이 없을 때만 검색 점수 기준)
+     * 검색 점수는 임베딩 모델마다 분포가 달라, 기준값으로 거르면 실제로 인용한 조항도 누락됨
+     *
+     * @param  Collection<int, array{chunk_id: int, label: string, text: string, score: float}>  $found
+     */
+    private function citations(int $documentId, string $content, Collection $found): array
+    {
+        if (! preg_match('/^[ \t*]*근거[ \t*]*[:：](.+)$/mu', $content, $line)) {
+            return $found->where('score', '>=', config('ai.rag.min_similarity'))->values()->all();
+        }
+
+        // "제25조(연차유급휴가)"처럼 제목까지 쓰거나 "제25조"만 써도 같은 조항으로 찾도록 조 번호로 비교
+        preg_match_all('/제\s*\d+\s*조(?:의\s*\d+)?/u', $line[1], $cited);
+        $articles = array_values(array_unique(array_map(fn (string $a) => preg_replace('/\s+/u', '', $a), $cited[0])));
+        $articleOf = fn (string $label) => preg_match('/^제\s*\d+\s*조(?:의\s*\d+)?/u', $label, $m) ? preg_replace('/\s+/u', '', $m[0]) : null;
+
+        return Chunk::where('document_id', $documentId)->orderBy('seq')->get(['id', 'label', 'text'])
+            ->filter(fn (Chunk $chunk) => in_array($articleOf($chunk->label), $articles, true))
+            ->sortBy(fn (Chunk $chunk) => array_search($articleOf($chunk->label), $articles, true))
+            ->map(fn (Chunk $chunk) => [
+                'chunk_id' => $chunk->id,
+                'label' => $chunk->label,
+                'text' => $chunk->text,
+                'score' => $found->firstWhere('chunk_id', $chunk->id)['score'] ?? null,
+            ])
+            ->values()
+            ->all();
     }
 
     /**
