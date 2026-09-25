@@ -72,6 +72,18 @@ class DocumentController extends Controller
         return response()->json(['id' => $document->id], 201);
     }
 
+    public function update(Request $request, Document $document): JsonResponse
+    {
+        $validated = $request->validate(['title' => ['required', 'string', 'max:255']], [
+            'title.required' => '문서명을 입력하세요.',
+            'title.max' => '문서명은 255자 이하로 입력하세요.',
+        ]);
+
+        $document->update(['title' => trim($validated['title'])]);
+
+        return response()->json(['title' => $document->title]);
+    }
+
     public function destroy(Document $document): Response
     {
         $document->delete();

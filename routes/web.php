@@ -22,6 +22,7 @@ Route::get('/', function (Request $request) {
 Route::prefix('api')->group(function () {
     Route::get('documents', [DocumentController::class, 'index']);
     Route::post('documents', [DocumentController::class, 'store']);
+    Route::patch('documents/{document}', [DocumentController::class, 'update']);
     Route::delete('documents/{document}', [DocumentController::class, 'destroy']);
 
     Route::get('documents/{document}/conversations', [ChatController::class, 'conversations']);

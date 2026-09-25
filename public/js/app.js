@@ -110,7 +110,12 @@ async function loadDocuments() {
     list.append(li);
   }
   for (const doc of documents) {
-    const li = listItem(doc.title, doc.id === state.documentId, () => selectDocument(doc.id));
+    const li = listItem(
+      doc.title,
+      doc.id === state.documentId,
+      () => selectDocument(doc.id),
+      (title) => renameDocument(doc.id, title),
+    );
     const del = document.createElement("button");
     del.type = "button";
     del.className = "delete-button";
@@ -120,6 +125,16 @@ async function loadDocuments() {
     li.append(del);
     list.append(li);
   }
+}
+
+async function renameDocument(id, title) {
+  await api(`/api/documents/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title }),
+  });
+  await loadDocuments();
+  if (id === state.documentId) $("chat-title").textContent = title;
 }
 
 async function deleteDocument(doc) {
