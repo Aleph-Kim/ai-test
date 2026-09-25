@@ -26,6 +26,9 @@ class ChatController extends Controller
 {
     private const HISTORY_LIMIT = 10;
 
+    // 스트리밍 요청 전체에 걸리는 제한이므로 긴 답변도 끊기지 않도록 SDK 기본값(60초)보다 길게 설정
+    private const STREAM_TIMEOUT = 120;
+
     private const INSTRUCTIONS = <<<'TXT'
         당신은 사내 규정을 직원에게 설명하는 도우미입니다.
         - 아래 [규정 조항]에 있는 내용만 근거로 한국어로 쉽게 설명합니다.
@@ -78,13 +81,16 @@ class ChatController extends Controller
         $conversation->messages()->create(['role' => 'user', 'content' => $question]);
 
         return response()->eventStream(function () use ($conversation, $question, $history) {
+            // 웹 요청 기본 실행 제한(30초)에 걸리면 오류 이벤트 없이 강제 종료되므로 해제 (대기 한도는 STREAM_TIMEOUT)
+            set_time_limit(0);
+
             try {
                 $found = $this->search($conversation->document_id, $question);
                 $citations = $found->where('score', '>=', config('ai.rag.min_similarity'))->values()->all();
                 yield $this->event('citations', $citations);
 
                 $clauses = $found->map(fn (array $c) => "### {$c['label']}\n{$c['text']}")->join("\n\n");
-                $stream = agent(self::INSTRUCTIONS."\n\n[규정 조항]\n".$clauses, $history)->stream($question);
+                $stream = agent(self::INSTRUCTIONS."\n\n[규정 조항]\n".$clauses, $history)->stream($question, timeout: self::STREAM_TIMEOUT);
 
                 $answer = '';
                 foreach ($stream as $event) {
