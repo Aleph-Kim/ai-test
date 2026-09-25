@@ -407,11 +407,13 @@ input[type="file"] { width: 100%; font-size: 0.85rem; color: var(--secondary-lab
   background: var(--surface);
 }
 
+/* 한 줄일 때 입력칸 높이(글줄 24px + 여백 8px)를 보내기 버튼 높이 32px와 일치시켜 상하 정렬 */
 .composer textarea {
   flex: 1;
   min-height: 32px;
   max-height: 160px;
-  padding: 5px 0;
+  padding: 4px 0;
+  line-height: 24px;
   border: 0;
   background: transparent;
   color: var(--label);
@@ -426,7 +428,7 @@ input[type="file"] { width: 100%; font-size: 0.85rem; color: var(--secondary-lab
 
 .send-button {
   flex: none;
-  min-height: 32px;
+  height: 32px;
   padding: 0 14px;
   border: 0;
   border-radius: 16px;
@@ -443,7 +445,9 @@ input[type="file"] { width: 100%; font-size: 0.85rem; color: var(--secondary-lab
   .sidebar { border-right: 0; border-bottom: 1px solid var(--separator); overflow: visible; }
   .chat { min-height: 80dvh; }
   .message { max-width: 88%; }
-  .row-button, .delete-button, .send-button, .filled-button, .choice { min-height: 44px; }
+  .row-button, .delete-button, .filled-button, .choice { min-height: 44px; }
+  .send-button { height: 44px; border-radius: 22px; }
+  .composer textarea { min-height: 44px; padding: 10px 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
