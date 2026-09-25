@@ -13,4 +13,9 @@ class Document extends Model
     {
         return $this->hasMany(Chunk::class);
     }
+
+    public function conversations(): HasMany
+    {
+        return $this->hasMany(Conversation::class);
+    }
 }
