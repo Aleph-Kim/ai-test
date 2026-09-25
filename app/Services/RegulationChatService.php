@@ -146,12 +146,18 @@ class RegulationChatService
     }
 
     /**
-     * 질문과 가까운 조항 상위 N개 (score는 코사인 유사도)
+     * 답변에 쓸 조항 목록: 작은 문서는 전체 조항, 큰 문서는 질문과 가까운 조항 상위 N개 (score는 코사인 유사도)
+     * 조항 몇 개만 넘기면 "비품 관련 조항"처럼 여러 조항에 흩어진 내용을 놓치므로 모델이 감당할 수 있는 크기면 전부 넘김
      *
-     * @return Collection<int, array{chunk_id: int, label: string, text: string, score: float}>
+     * @return Collection<int, array{chunk_id: int, label: string, text: string, score: ?float}>
      */
     public function search(int $documentId, string $question): Collection
     {
+        if (Chunk::where('document_id', $documentId)->sum(DB::raw('CHAR_LENGTH(text)')) <= config('rag.full_context_chars')) {
+            return Chunk::where('document_id', $documentId)->orderBy('seq')->get(['id', 'label', 'text'])
+                ->map(fn (Chunk $chunk) => ['chunk_id' => $chunk->id, 'label' => $chunk->label, 'text' => $chunk->text, 'score' => null]);
+        }
+
         $provider = NvidiaEmbeddingService::PROVIDER;
         $model = $this->embeddings->model();
 
