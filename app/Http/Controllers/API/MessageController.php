@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers\API;
 
+use App\Enums\MessageRole;
+use App\Http\Requests\Api\MessageStoreRequest;
+use App\Http\Resources\MessageResource;
 use App\Models\Conversation;
 use App\Services\NvidiaEmbeddingService;
 use App\Services\RegulationChatService;
@@ -26,24 +29,22 @@ class MessageController extends Controller
     {
         $this->authorizeConversation($request, $conversation);
 
-        $list = $conversation->messages()->orderBy('id')->get(['role', 'content', 'calculation', 'citations', 'clarifications', 'provider', 'model', 'elapsed_ms', 'created_at']);
-
-        return $this->responseData(data: ['list' => $list]);
+        return $this->responseData(data: ['list' => MessageResource::collection($conversation->messages()->orderBy('id')->get())]);
     }
 
     /**
      * 질문 전송 및 답변 스트리밍 (SSE: delta → done 또는 error)
      */
-    public function store(Request $request, Conversation $conversation): StreamedResponse
+    public function store(MessageStoreRequest $request, Conversation $conversation): StreamedResponse
     {
         $startedAt = hrtime(true);
         $this->authorizeConversation($request, $conversation);
-        $question = $request->validate(['question' => ['required', 'string', 'max:2000']])['question'];
+        $question = $request->validated('question');
 
         $context = $this->regulationChat->context($conversation, $question);
 
         // 스트림 중 오류가 나도 질문은 남도록 먼저 저장
-        $conversation->messages()->create(['role' => 'user', 'content' => $question]);
+        $conversation->messages()->create(['role' => MessageRole::User, 'content' => $question]);
 
         return response()->eventStream(function () use ($conversation, $question, $context, $startedAt) {
             // 웹 요청 기본 실행 제한(30초)에 걸리면 오류 이벤트 없이 강제 종료되므로 해제 (대기 한도는 채팅 서비스 타임아웃)
@@ -64,7 +65,7 @@ class MessageController extends Controller
             } catch (Throwable $e) {
                 // 새로고침 후에도 대화에 실패 기록이 남도록 오류 메시지로 저장
                 $error = $conversation->messages()->create([
-                    'role' => 'error',
+                    'role' => MessageRole::Error,
                     'content' => $this->aiFailure($e, '답변 생성', ['conversation_id' => $conversation->id]),
                     'elapsed_ms' => intdiv(hrtime(true) - $startedAt, 1_000_000),
                 ]);
@@ -75,7 +76,7 @@ class MessageController extends Controller
 
             $parsed = $this->regulationChat->parseAnswer($conversation->document_id, $answer, $found);
             $message = $conversation->messages()->create([
-                'role' => 'assistant',
+                'role' => MessageRole::Assistant,
                 ...$parsed,
                 'provider' => NvidiaEmbeddingService::PROVIDER,
                 'model' => $this->regulationChat->chatModel(),

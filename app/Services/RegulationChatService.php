@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\MessageRole;
 use App\Models\Chunk;
 use App\Models\Conversation;
 use App\Models\Message;
@@ -92,11 +93,11 @@ class RegulationChatService
     public function context(Conversation $conversation, string $question): array
     {
         // 저장된 오류 메시지는 화면 기록용이므로 모델 대화 기록과 검색어에서 제외
-        $recent = $conversation->messages()->whereIn('role', ['user', 'assistant'])->latest('id')->limit(self::HISTORY_LIMIT)->get();
+        $recent = $conversation->messages()->whereIn('role', [MessageRole::User, MessageRole::Assistant])->latest('id')->limit(self::HISTORY_LIMIT)->get();
 
         return [
             'history' => $recent->reverse()
-                ->map(fn (Message $m) => ['role' => $m->role, 'content' => $m->role === 'user' ? $m->content : $this->historyContent($m)])
+                ->map(fn (Message $m) => ['role' => $m->role->value, 'content' => $m->role === MessageRole::User ? $m->content : $this->historyContent($m)])
                 ->values()
                 ->all(),
             'search_query' => $this->searchQuery($recent, $question),
@@ -223,7 +224,7 @@ class RegulationChatService
     {
         $parts = [$question];
         foreach ($recent as $message) {
-            if ($message->role === 'assistant') {
+            if ($message->role === MessageRole::Assistant) {
                 if (empty($message->clarifications)) {
                     break;
                 }
@@ -262,7 +263,7 @@ class RegulationChatService
     private function answeredClarification(Collection $recent, string $question): string
     {
         $last = $recent->first();
-        if ($last?->role !== 'assistant' || empty($last->clarifications)) {
+        if ($last?->role !== MessageRole::Assistant || empty($last->clarifications)) {
             return '';
         }
 

@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers\API;
 
+use App\Http\Requests\Api\ConversationStoreRequest;
+use App\Http\Requests\Api\ConversationUpdateRequest;
+use App\Http\Resources\ConversationResource;
 use App\Models\Conversation;
 use App\Models\Document;
 use Illuminate\Http\JsonResponse;
@@ -26,19 +29,17 @@ class ConversationController extends Controller
             ->orderByDesc('id')
             ->get();
 
-        return $this->responseData(data: ['list' => $list]);
+        return $this->responseData(data: ['list' => ConversationResource::collection($list)]);
     }
 
     /**
      * 대화 생성 (대화명은 첫 질문 앞 30자)
      */
-    public function store(Request $request, Document $document): JsonResponse
+    public function store(ConversationStoreRequest $request, Document $document): JsonResponse
     {
-        $validated = $request->validate(['title' => ['required', 'string']]);
-
         $conversation = $document->conversations()->create([
             'client_id' => $this->clientId($request),
-            'title' => mb_substr(trim($validated['title']), 0, 30),
+            'title' => mb_substr(trim($request->validated('title')), 0, 30),
         ]);
 
         return $this->responseData(msg: '등록되었습니다.', data: ['id' => $conversation->id]);
@@ -47,15 +48,10 @@ class ConversationController extends Controller
     /**
      * 대화명 수정
      */
-    public function update(Request $request, Conversation $conversation): JsonResponse
+    public function update(ConversationUpdateRequest $request, Conversation $conversation): JsonResponse
     {
         $this->authorizeConversation($request, $conversation);
-        $validated = $request->validate(['title' => ['required', 'string', 'max:255']], [
-            'title.required' => '대화명을 입력하세요.',
-            'title.max' => '대화명은 255자 이하로 입력하세요.',
-        ]);
-
-        $conversation->update(['title' => trim($validated['title'])]);
+        $conversation->update(['title' => trim($request->validated('title'))]);
 
         return $this->responseData(msg: '수정되었습니다.', data: ['title' => $conversation->title]);
     }

@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers\API;
 
+use App\Http\Requests\Api\DocumentStoreRequest;
+use App\Http\Requests\Api\DocumentUpdateRequest;
+use App\Http\Resources\DocumentResource;
 use App\Models\Chunk;
 use App\Models\Document;
 use App\Services\NvidiaEmbeddingService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Throwable;
@@ -21,29 +23,17 @@ class DocumentController extends Controller
      */
     public function index(): JsonResponse
     {
-        return $this->responseData(data: ['list' => Document::latest('id')->get(['id', 'title', 'filename', 'created_at'])]);
+        return $this->responseData(data: ['list' => DocumentResource::collection(Document::latest('id')->get())]);
     }
 
     /**
      * 문서 업로드 (조항 분할·임베딩 후 저장)
      */
-    public function store(Request $request, NvidiaEmbeddingService $embeddings): JsonResponse
+    public function store(DocumentStoreRequest $request, NvidiaEmbeddingService $embeddings): JsonResponse
     {
-        $validated = $request->validate([
-            'title' => ['nullable', 'string', 'max:255'],
-            'file' => ['required', 'file', 'extensions:txt,md', 'max:2048'],
-        ], [
-            'file.required' => '파일을 고르세요.',
-            'file.extensions' => '.txt 또는 .md 파일만 올릴 수 있습니다.',
-            'file.max' => '파일은 2MB 이하만 올릴 수 있습니다.',
-        ]);
-
+        $validated = $request->validated();
         $file = $validated['file'];
-        // BOM이 붙은 UTF-8(메모장 저장 파일)도 허용
-        $content = preg_replace('/^\xEF\xBB\xBF/', '', $file->get());
-        if (! mb_check_encoding($content, 'UTF-8')) {
-            throw ValidationException::withMessages(['file' => 'UTF-8 파일만 올릴 수 있습니다.']);
-        }
+        $content = $request->fileContent();
 
         $chunks = Chunk::split($content);
         if ($chunks === []) {
@@ -83,14 +73,9 @@ class DocumentController extends Controller
     /**
      * 문서명 수정
      */
-    public function update(Request $request, Document $document): JsonResponse
+    public function update(DocumentUpdateRequest $request, Document $document): JsonResponse
     {
-        $validated = $request->validate(['title' => ['required', 'string', 'max:255']], [
-            'title.required' => '문서명을 입력하세요.',
-            'title.max' => '문서명은 255자 이하로 입력하세요.',
-        ]);
-
-        $document->update(['title' => trim($validated['title'])]);
+        $document->update(['title' => trim($request->validated('title'))]);
 
         return $this->responseData(msg: '수정되었습니다.', data: ['title' => $document->title]);
     }
