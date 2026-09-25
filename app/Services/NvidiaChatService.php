@@ -3,7 +3,9 @@
 namespace App\Services;
 
 use Generator;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
+use Throwable;
 
 class NvidiaChatService
 {
@@ -26,6 +28,8 @@ class NvidiaChatService
         $response = Http::withToken(config('services.nvidia.api_key'))
             ->timeout(self::STREAM_TIMEOUT)
             ->connectTimeout(5)
+            // 무료 API는 분당 요청 한도(429)에 자주 걸리며 잠시 뒤 다시 보내면 대부분 성공
+            ->retry(3, 2000, fn (Throwable $e) => $e instanceof RequestException && $e->response->status() === 429)
             // 스트리밍 핸들러는 read_timeout이 없으면 첫 응답을 60초만 기다리고 끊음
             ->withOptions(['stream' => true, 'read_timeout' => self::STREAM_TIMEOUT])
             ->post(config('services.nvidia.base_url').'/chat/completions', [
