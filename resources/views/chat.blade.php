@@ -6,7 +6,8 @@
   <meta name="color-scheme" content="light dark">
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>규칙 설명 챗봇</title>
-  <link rel="stylesheet" href="{{ asset('css/app.css') }}">
+  {{-- 파일 수정 시각을 주소에 붙여 수정 후에도 브라우저가 예전 캐시를 쓰지 않도록 처리 --}}
+  <link rel="stylesheet" href="{{ asset('css/app.css') }}?v={{ filemtime(public_path('css/app.css')) }}">
 </head>
 <body>
   <a class="skip" href="#question">질문 입력으로 건너뛰기</a>
@@ -74,6 +75,6 @@
 
   <script src="{{ asset('vendor/marked.umd.js') }}"></script>
   <script src="{{ asset('vendor/purify.min.js') }}"></script>
-  <script src="{{ asset('js/app.js') }}"></script>
+  <script src="{{ asset('js/app.js') }}?v={{ filemtime(public_path('js/app.js')) }}"></script>
 </body>
 </html>
