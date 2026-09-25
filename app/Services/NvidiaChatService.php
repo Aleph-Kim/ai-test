@@ -36,6 +36,7 @@ class NvidiaChatService
                 'model' => $this->model(),
                 'messages' => $messages,
                 'stream' => true,
+                'chat_template_kwargs' => ['thinking' => config('services.nvidia.chat_thinking')],
             ])
             ->throw();
 

@@ -38,7 +38,9 @@ return [
     'nvidia' => [
         'api_key' => env('NVIDIA_NIM_API_KEY'),
         'base_url' => env('NVIDIA_NIM_BASE_URL', 'https://integrate.api.nvidia.com/v1'),
-        'chat_model' => env('NVIDIA_NIM_CHAT_MODEL', 'google/gemma-4-31b-it'),
+        'chat_model' => env('NVIDIA_NIM_CHAT_MODEL', 'deepseek-ai/deepseek-v4.1-flash'),
+        // 추론 모델이 답변 전에 추론을 먼저 쓰면 첫 글자까지 수십 초가 걸려 기본은 끔 (추론을 지원하지 않는 모델은 무시)
+        'chat_thinking' => (bool) env('NVIDIA_NIM_CHAT_THINKING', false),
         'embedding_model' => env('NVIDIA_NIM_EMBEDDING_MODEL', 'nvidia/nemotron-3-embed-1b'),
         // embeddings.vector 컬럼 차원과 같아야 함
         'embedding_dimensions' => (int) env('NVIDIA_NIM_EMBEDDING_DIMENSIONS', 2048),
