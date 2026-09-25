@@ -211,7 +211,7 @@ function timeElement(className, date, format) {
   return el;
 }
 
-const formatSeconds = (ms) => `${(ms / 1000).toFixed(1)}초`;
+const formatSeconds = (ms) => `${Math.floor(ms / 1000)}초`;
 
 const FOLLOW_UP_MARKER = "[[꼬리질문]]";
 
@@ -225,7 +225,7 @@ function visibleAnswer(raw) {
   return raw;
 }
 
-// 답변 시각 옆에 소요 시간 표시 (예: 오후 9:14 · 12.8초)
+// 답변 시각 옆에 소요 시간 표시 (예: 오후 9:14 · 12초)
 function messageTime(createdAt, elapsedMs) {
   const el = timeElement("message-time", new Date(createdAt), timeFormat);
   if (elapsedMs != null) el.textContent += ` · ${formatSeconds(elapsedMs)}`;
