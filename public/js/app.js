@@ -412,8 +412,15 @@ $("new-conversation").addEventListener("click", () => {
   loadConversations();
   $("question").focus();
 });
+// Enter 전송, Ctrl/⌘+Enter 줄바꿈 (한글 조합 확정용 Enter는 무시, Safari는 조합 중 keyCode 229)
 $("question").addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !e.isComposing) $("ask-form").requestSubmit();
+  if (e.key !== "Enter" || e.shiftKey || e.isComposing || e.keyCode === 229) return;
+  e.preventDefault();
+  if (e.ctrlKey || e.metaKey) {
+    e.target.setRangeText("\n", e.target.selectionStart, e.target.selectionEnd, "end");
+    return;
+  }
+  if (!$("ask-button").disabled) $("ask-form").requestSubmit();
 });
 
 loadDocuments().catch((err) => {

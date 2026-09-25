@@ -51,7 +51,7 @@
           <textarea id="question" name="question" rows="1" maxlength="2000" placeholder="규정에 대해 질문하기…"></textarea>
           <button id="ask-button" type="submit" class="send-button">보내기</button>
         </div>
-        <p class="caption composer-hint">Ctrl/⌘ + Enter로 보내기</p>
+        <p class="caption composer-hint">Enter로 보내기 · Ctrl/⌘ + Enter로 줄바꿈</p>
         <p id="ask-status" class="status" aria-live="polite"></p>
       </form>
     </main>
