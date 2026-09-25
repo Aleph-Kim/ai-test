@@ -296,6 +296,25 @@ input[type="file"] { width: 100%; font-size: 0.85rem; color: var(--secondary-lab
 .message.assistant .bubble { background: var(--bubble-in); color: var(--label); border-bottom-left-radius: 6px; }
 .bubble.pending { color: var(--secondary-label); }
 
+.typing { display: inline-flex; gap: 4px; padding: 6px 2px; }
+
+.typing span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.35;
+  animation: typing 1.2s ease-in-out infinite;
+}
+
+.typing span:nth-child(2) { animation-delay: 0.15s; }
+.typing span:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes typing {
+  0%, 60%, 100% { opacity: 0.35; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-3px); }
+}
+
 .message-time { margin-top: 3px; padding: 0 6px; font-size: 0.72rem; color: var(--secondary-label); font-variant-numeric: tabular-nums; }
 
 .date-divider {
@@ -376,4 +395,5 @@ input[type="file"] { width: 100%; font-size: 0.85rem; color: var(--secondary-lab
 
 @media (prefers-reduced-motion: reduce) {
   .filled-button:active, .send-button:active { transform: none; }
+  .typing span { animation: none; opacity: 0.6; }
 }

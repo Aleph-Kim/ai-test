@@ -270,6 +270,15 @@ function renderMessage(role, content, createdAt) {
   };
 }
 
+function typingIndicator() {
+  const el = document.createElement("span");
+  el.className = "typing";
+  el.setAttribute("role", "status");
+  el.setAttribute("aria-label", "답변 작성 중");
+  for (let i = 0; i < 3; i++) el.append(document.createElement("span"));
+  return el;
+}
+
 async function readEvents(res, onEvent) {
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
@@ -302,7 +311,7 @@ async function ask(event) {
 
   const button = $("ask-button");
   button.disabled = true;
-  setStatus(status, "답변 작성 중…");
+  setStatus(status, "");
   let answer = null;
   try {
     if (!state.conversationId) {
@@ -317,8 +326,9 @@ async function ask(event) {
 
     renderMessage("user", question, new Date().toISOString());
     input.value = "";
-    answer = renderMessage("assistant", "답변 작성 중…");
+    answer = renderMessage("assistant", "");
     answer.body.classList.add("pending");
+    answer.body.append(typingIndicator());
 
     // EventSource는 GET만 지원하여 질문 본문 전송이 불가능하므로 fetch 스트림으로 수신
     const res = await fetch(`/api/conversations/${state.conversationId}/messages`, {
