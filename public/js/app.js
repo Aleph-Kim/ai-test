@@ -531,10 +531,12 @@ async function ask(event) {
     let raw = "";
     let clarifications = [];
     let calculation = null;
+    let content = null;
     await readEvents(res, (type, data) => {
       if (type === "done") {
         answer.setTime(data.created_at, data.elapsed_ms);
         calculation = data.calculation;
+        content = data.content;
         citations = data.citations;
         clarifications = data.clarifications;
       }
@@ -560,6 +562,11 @@ async function ask(event) {
     // 마지막 채팅 시간과 목록 순서 갱신
     loadConversations();
     if (!failed) {
+      // 스트리밍 중에는 사전 질문 표시 뒤를 숨기므로, 그 뒤에 이어 쓴 설명까지 서버가 정리한 본문으로 교체
+      if (content) {
+        answer.body.classList.remove("pending");
+        setMarkdown(answer.body, content);
+      }
       answer.setCalculation(calculation);
       answer.setCitations(citations);
       answer.setClarifications(clarifications);

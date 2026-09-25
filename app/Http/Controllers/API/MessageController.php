@@ -85,6 +85,7 @@ class MessageController extends Controller
             yield $this->event('done', [
                 'created_at' => $message->created_at->toJSON(),
                 'elapsed_ms' => $message->elapsed_ms,
+                'content' => $parsed['content'],
                 'calculation' => $parsed['calculation'],
                 'citations' => $parsed['citations'],
                 'clarifications' => $parsed['clarifications'],

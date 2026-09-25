@@ -306,10 +306,15 @@ class RegulationChatService
             return [trim($answer), []];
         }
 
-        $block = mb_substr($answer, $position + mb_strlen(self::CLARIFY_MARKER));
-        $clarifications = collect(preg_split('/\R/u', $block))
-            ->map(fn (string $line) => trim(preg_replace('/^\s*[-*•]\s*/u', '', $line)))
-            ->filter()
+        // 표시 바로 뒤 빈 줄 전까지만 질문으로 보고, 모델이 그 뒤에 이어 쓴 설명은 본문으로 되돌림
+        $lines = preg_split('/\R/u', ltrim(mb_substr($answer, $position + mb_strlen(self::CLARIFY_MARKER))));
+        $questions = [];
+        while ($lines !== [] && trim($lines[0]) !== '') {
+            $questions[] = trim(preg_replace('/^\s*[-*•]\s*/u', '', array_shift($lines)));
+        }
+        $content = trim(mb_substr($answer, 0, $position)."\n\n".implode("\n", $lines));
+
+        $clarifications = collect($questions)
             ->take(self::MAX_CLARIFICATIONS)
             ->map(function (string $line) {
                 $parts = array_values(array_filter(array_map('trim', explode('|', $line)), fn ($p) => $p !== ''));
@@ -319,6 +324,6 @@ class RegulationChatService
             ->values()
             ->all();
 
-        return [trim(mb_substr($answer, 0, $position)), $clarifications];
+        return [$content, $clarifications];
     }
 }
