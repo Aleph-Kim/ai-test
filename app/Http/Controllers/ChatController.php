@@ -54,19 +54,23 @@ class ChatController extends Controller
         - 대화에서 이미 받은 정보는 다시 묻지 않습니다. 필요한 정보가 모이면 사전 질문 없이 바로 결론 답변을 씁니다.
         - 질문이 이미 구체적이면 되묻지 않고 바로 결론 답변을 씁니다.
         - "어제", "작년 3월" 같은 날짜 표현은 아래 오늘 날짜를 기준으로 계산합니다.
+        - 일수·금액을 계산하기 전에 관련 조항의 모든 항(①②③…)을 끝까지 확인하고, 포함·차감·한도 규정을 빠짐없이 적용합니다.
+          (예: "최초 1년은 1년 미만 기간에 생긴 휴가를 포함해 15일로 하고 이미 쓴 일수를 뺀다"는 항이 있으면 따로 더하지 않습니다)
         - 근속 기간처럼 날짜 계산이 필요하면 오늘 날짜 기준으로 먼저 계산하고, 그 시점에 해당하는 규정만 적용합니다.
           서로 다른 시점·조건에 적용되는 규정(예: 입사 1년 미만에 생기는 연차와 1년이 지나 생기는 연차)을 규정에 합산하라는 내용이 없으면 더하지 않습니다.
 
         [결론 답변 작성 방법]
         - 조항 문장을 그대로 옮기지 않습니다. 직원이 한 번 읽고 바로 이해하도록 쉬운 말과 해요체로 풀어서 설명합니다.
         - 법률·인사 용어는 괄호로 쉽게 풀어 줍니다. (예: 평균임금(최근 3개월 동안 받은 임금의 하루 평균))
+        - 각 항목 끝에 그 내용의 근거 조항 라벨을 괄호로 붙입니다. (예: "1년간 쓰지 않은 연차는 사라져요 (제26조(연차휴가의 사용))")
+          [규정 조항]에 없는 일반 상식이나 법령 내용은 쓰지 않습니다.
         - 아래 순서로 씁니다. 해당 내용이 규정에 없는 항목은 생략합니다.
           1. 첫 문장: 판단의 전제와 직원 상황에 맞춘 결론 한 문장 (예: "입사 3년 차이시니 육아휴직은 최대 1년까지 쓸 수 있어요.")
           2. **자세히 알려드릴게요**: 기간·금액·횟수·조건·예외를 직원 상황에 대입해 3~5개 항목으로 구체적으로 설명합니다.
              계산이 가능하면 직원 상황으로 직접 계산한 값을 보여 줍니다. (예: "2024년 3월 입사라면 올해 연차는 15일이에요.")
           3. **이렇게 하면 돼요**: 신청 방법, 제출 서류, 기한 등 직원이 해야 할 일
           4. **참고하세요**: 놓치기 쉬운 주의사항이나 예외
-          5. 마지막 줄: "근거: " 뒤에 참고한 조항 라벨만 나열 (예: 근거: 제30조(육아휴직), 제31조(육아휴직 급여))
+          5. 마지막 줄: "근거: " 뒤에 답변에서 사용한 조항 라벨을 빠짐없이 나열 (예: 근거: 제30조(육아휴직), 제31조(육아휴직 급여))
         TXT;
 
     public function conversations(Request $request, Document $document): JsonResponse
@@ -239,20 +243,19 @@ class ChatController extends Controller
     }
 
     /**
-     * 답변의 "근거:" 줄에 적힌 조항을 근거 조항으로 사용 ("근거:" 줄이 없을 때만 검색 점수 기준)
-     * 검색 점수는 임베딩 모델마다 분포가 달라, 기준값으로 거르면 실제로 인용한 조항도 누락됨
+     * 답변 본문과 "근거:" 줄에서 언급한 조항을 모두 근거 조항으로 사용 (언급한 조항이 없을 때만 검색 점수 기준)
+     * 검색 점수는 임베딩 모델마다 분포가 달라 기준값으로 거르면 누락되고, "근거:" 줄만 보면 본문에서 쓴 조항이 빠짐
      *
      * @param  Collection<int, array{chunk_id: int, label: string, text: string, score: float}>  $found
      */
     private function citations(int $documentId, string $content, Collection $found): array
     {
-        if (! preg_match('/^[ \t*]*근거[ \t*]*[:：](.+)$/mu', $content, $line)) {
+        // "제25조(연차유급휴가)"처럼 제목까지 쓰거나 "제25조"만 써도 같은 조항으로 찾도록 조 번호로 비교
+        preg_match_all('/제\s*\d+\s*조(?:의\s*\d+)?/u', $content, $cited);
+        $articles = array_values(array_unique(array_map(fn (string $a) => preg_replace('/\s+/u', '', $a), $cited[0])));
+        if ($articles === []) {
             return $found->where('score', '>=', config('ai.rag.min_similarity'))->values()->all();
         }
-
-        // "제25조(연차유급휴가)"처럼 제목까지 쓰거나 "제25조"만 써도 같은 조항으로 찾도록 조 번호로 비교
-        preg_match_all('/제\s*\d+\s*조(?:의\s*\d+)?/u', $line[1], $cited);
-        $articles = array_values(array_unique(array_map(fn (string $a) => preg_replace('/\s+/u', '', $a), $cited[0])));
         $articleOf = fn (string $label) => preg_match('/^제\s*\d+\s*조(?:의\s*\d+)?/u', $label, $m) ? preg_replace('/\s+/u', '', $m[0]) : null;
 
         return Chunk::where('document_id', $documentId)->orderBy('seq')->get(['id', 'label', 'text'])
