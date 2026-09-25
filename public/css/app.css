@@ -295,7 +295,8 @@ input[type="file"] { width: 100%; font-size: 0.85rem; color: var(--secondary-lab
   margin: 0 auto;
 }
 
-.message { display: flex; flex-direction: column; max-width: 78%; }
+/* 숨김 라벨(position: absolute)이 페이지 기준으로 배치돼 긴 대화에서 페이지 전체 스크롤이 생기지 않도록 메시지를 기준으로 지정 */
+.message { position: relative; display: flex; flex-direction: column; max-width: 78%; }
 .message.user { align-self: flex-end; align-items: flex-end; margin-top: 10px; }
 .message.assistant, .message.error { align-self: flex-start; align-items: flex-start; }
 
