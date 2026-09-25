@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable(['seq', 'label', 'text'])]
 class Chunk extends Model
@@ -14,6 +16,16 @@ class Chunk extends Model
     private const PARAGRAPH_LIMIT = 1000;
 
     public $timestamps = false;
+
+    public function document(): BelongsTo
+    {
+        return $this->belongsTo(Document::class);
+    }
+
+    public function embeddings(): HasMany
+    {
+        return $this->hasMany(Embedding::class);
+    }
 
     /**
      * 규칙 문서를 조항 단위로 분할 (조항 표기가 없으면 1,000자 이하 문단 묶음)
