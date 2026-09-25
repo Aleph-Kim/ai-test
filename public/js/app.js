@@ -306,7 +306,7 @@ function renderMessage(role, content, createdAt, elapsedMs) {
   wrap.className = `message ${role}`;
   const roleEl = document.createElement("span");
   roleEl.className = "visually-hidden";
-  roleEl.textContent = role === "user" ? "질문" : "답변";
+  roleEl.textContent = { user: "질문", assistant: "답변", error: "오류" }[role];
   const body = document.createElement("div");
   body.className = "bubble";
   if (role === "assistant") setMarkdown(body, content);
@@ -318,6 +318,13 @@ function renderMessage(role, content, createdAt, elapsedMs) {
 
   return {
     body,
+    // 답변 대기 말풍선을 오류 말풍선으로 전환
+    markError(message) {
+      wrap.className = "message error";
+      roleEl.textContent = "오류";
+      body.classList.remove("pending");
+      body.textContent = message;
+    },
     setTime(createdAt, elapsedMs) {
       body.after(messageTime(createdAt, elapsedMs));
     },
@@ -487,9 +494,8 @@ async function ask(event) {
       }
       if (type === "error") {
         failed = true;
-        answer.body.classList.remove("pending");
-        answer.body.textContent = data;
-        setStatus(status, data, true);
+        answer.markError(data.message);
+        answer.setTime(data.created_at);
       }
     });
     // 마지막 채팅 시간과 목록 순서 갱신
@@ -501,10 +507,7 @@ async function ask(event) {
     }
   } catch (err) {
     setStatus(status, err.message, true);
-    if (answer?.body.classList.contains("pending")) {
-      answer.body.classList.remove("pending");
-      answer.body.textContent = err.message;
-    }
+    if (answer?.body.classList.contains("pending")) answer.markError(err.message);
   } finally {
     loading?.stop();
     button.disabled = false;

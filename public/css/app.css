@@ -291,7 +291,7 @@ input[type="file"] { width: 100%; font-size: 0.85rem; color: var(--secondary-lab
 
 .message { display: flex; flex-direction: column; max-width: 78%; }
 .message.user { align-self: flex-end; align-items: flex-end; margin-top: 10px; }
-.message.assistant { align-self: flex-start; align-items: flex-start; }
+.message.assistant, .message.error { align-self: flex-start; align-items: flex-start; }
 
 .bubble {
   padding: 9px 14px;
@@ -302,6 +302,7 @@ input[type="file"] { width: 100%; font-size: 0.85rem; color: var(--secondary-lab
 
 .message.user .bubble { background: var(--accent); color: #fff; border-bottom-right-radius: 6px; }
 .message.assistant .bubble { background: var(--bubble-in); color: var(--label); border-bottom-left-radius: 6px; }
+.message.error .bubble { background: color-mix(in srgb, var(--danger) 12%, var(--surface)); color: var(--danger); border-bottom-left-radius: 6px; }
 .bubble.pending { color: var(--secondary-label); }
 
 /* 마크다운 HTML은 태그 사이 줄바꿈이 그대로 보이지 않도록 일반 공백 처리 */

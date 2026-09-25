@@ -115,7 +115,8 @@ class ChatController extends Controller
         $this->authorizeConversation($request, $conversation);
         $question = $request->validate(['question' => ['required', 'string', 'max:2000']])['question'];
 
-        $recent = $conversation->messages()->latest('id')->limit(self::HISTORY_LIMIT)->get();
+        // 저장된 오류 메시지는 화면 기록용이므로 모델 대화 기록과 검색어에서 제외
+        $recent = $conversation->messages()->whereIn('role', ['user', 'assistant'])->latest('id')->limit(self::HISTORY_LIMIT)->get();
         $history = $recent->reverse()
             ->map(fn (Message $m) => $m->role === 'user' ? new UserMessage($m->content) : new AssistantMessage($this->historyContent($m)))
             ->values()
@@ -149,7 +150,13 @@ class ChatController extends Controller
                     }
                 }
             } catch (Throwable $e) {
-                yield $this->event('error', $this->aiFailure($e, '답변 생성', ['conversation_id' => $conversation->id]));
+                // 새로고침 후에도 대화에 실패 기록이 남도록 오류 메시지로 저장
+                $error = $conversation->messages()->create([
+                    'role' => 'error',
+                    'content' => $this->aiFailure($e, '답변 생성', ['conversation_id' => $conversation->id]),
+                    'elapsed_ms' => intdiv(hrtime(true) - $startedAt, 1_000_000),
+                ]);
+                yield $this->event('error', ['message' => $error->content, 'created_at' => $error->created_at->toJSON()]);
 
                 return;
             }
