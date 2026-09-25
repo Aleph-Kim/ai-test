@@ -10,8 +10,8 @@ use App\Models\Message;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Illuminate\Http\StreamedEvent;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Laravel\Ai\Messages\AssistantMessage;
 use Laravel\Ai\Messages\UserMessage;
@@ -104,9 +104,10 @@ class ChatController extends Controller
     {
         $this->authorizeConversation($request, $conversation);
 
-        return response()->json(
-            $conversation->messages()->orderBy('id')->get(['role', 'content', 'citations', 'clarifications', 'provider', 'model', 'elapsed_ms', 'created_at'])
-        );
+        return response()->json([
+            'messages' => $conversation->messages()->orderBy('id')->get(['role', 'content', 'citations', 'clarifications', 'provider', 'model', 'elapsed_ms', 'created_at']),
+            'answering' => Cache::has($this->answeringKey($conversation)),
+        ]);
     }
 
     public function ask(Request $request, Conversation $conversation): StreamedResponse
@@ -126,60 +127,73 @@ class ChatController extends Controller
         // 스트림 중 오류가 나도 질문은 남도록 먼저 저장
         $conversation->messages()->create(['role' => 'user', 'content' => $question]);
 
-        return response()->eventStream(function () use ($conversation, $question, $searchQuery, $history, $startedAt) {
+        // 새로고침 후에도 답변 작성 중인지 알 수 있도록 표시 (프로세스가 비정상 종료돼도 만료되도록 유효 시간 지정)
+        Cache::put($this->answeringKey($conversation), true, self::STREAM_TIMEOUT + 60);
+
+        return response()->stream(function () use ($conversation, $question, $searchQuery, $history, $startedAt) {
+            // 새로고침·탭 닫기로 연결이 끊겨도 답변을 끝까지 생성해 저장 (끊긴 뒤에는 전송만 생략)
+            ignore_user_abort(true);
             // 웹 요청 기본 실행 제한(30초)에 걸리면 오류 이벤트 없이 강제 종료되므로 해제 (대기 한도는 STREAM_TIMEOUT)
             set_time_limit(0);
 
             try {
-                $found = $this->search($conversation->document_id, $searchQuery);
-                $citations = $found->where('score', '>=', config('ai.rag.min_similarity'))->values()->all();
+                try {
+                    $found = $this->search($conversation->document_id, $searchQuery);
+                    $citations = $found->where('score', '>=', config('ai.rag.min_similarity'))->values()->all();
 
-                $clauses = $found->map(fn (array $c) => "### {$c['label']}\n{$c['text']}")->join("\n\n");
-                $today = now()->locale('ko')->isoFormat('YYYY년 M월 D일 dddd');
-                $instructions = self::INSTRUCTIONS."\n\n[오늘 날짜]\n{$today}\n\n[규정 조항]\n".$clauses;
-                $stream = agent($instructions, $history)->stream($question, timeout: self::STREAM_TIMEOUT);
+                    $clauses = $found->map(fn (array $c) => "### {$c['label']}\n{$c['text']}")->join("\n\n");
+                    $today = now()->locale('ko')->isoFormat('YYYY년 M월 D일 dddd');
+                    $instructions = self::INSTRUCTIONS."\n\n[오늘 날짜]\n{$today}\n\n[규정 조항]\n".$clauses;
+                    $stream = agent($instructions, $history)->stream($question, timeout: self::STREAM_TIMEOUT);
 
-                $answer = '';
-                foreach ($stream as $event) {
-                    if ($event instanceof StreamError) {
-                        throw new RuntimeException($event->message);
+                    $answer = '';
+                    foreach ($stream as $event) {
+                        if ($event instanceof StreamError) {
+                            throw new RuntimeException($event->message);
+                        }
+                        if ($event instanceof TextDelta) {
+                            $answer .= $event->delta;
+                            $this->send('delta', $event->delta);
+                        }
                     }
-                    if ($event instanceof TextDelta) {
-                        $answer .= $event->delta;
-                        yield $this->event('delta', $event->delta);
-                    }
+                } catch (Throwable $e) {
+                    // 새로고침 후에도 대화에 실패 기록이 남도록 오류 메시지로 저장
+                    $error = $conversation->messages()->create([
+                        'role' => 'error',
+                        'content' => $this->aiFailure($e, '답변 생성', ['conversation_id' => $conversation->id]),
+                        'elapsed_ms' => intdiv(hrtime(true) - $startedAt, 1_000_000),
+                    ]);
+                    $this->send('error', ['message' => $error->content, 'created_at' => $error->created_at->toJSON()]);
+
+                    return;
                 }
-            } catch (Throwable $e) {
-                // 새로고침 후에도 대화에 실패 기록이 남도록 오류 메시지로 저장
-                $error = $conversation->messages()->create([
-                    'role' => 'error',
-                    'content' => $this->aiFailure($e, '답변 생성', ['conversation_id' => $conversation->id]),
+
+                // 되묻는 차례에는 결론이 없으므로 근거 조항 미표시
+                [$content, $clarifications] = $this->splitClarifications($answer);
+                $citations = $clarifications === [] ? $citations : [];
+                $message = $conversation->messages()->create([
+                    'role' => 'assistant',
+                    'content' => $content,
+                    'citations' => $citations,
+                    'clarifications' => $clarifications,
+                    'provider' => config('ai.default'),
+                    'model' => config('ai.providers.'.config('ai.default').'.models.text.default'),
                     'elapsed_ms' => intdiv(hrtime(true) - $startedAt, 1_000_000),
                 ]);
-                yield $this->event('error', ['message' => $error->content, 'created_at' => $error->created_at->toJSON()]);
-
-                return;
+                $this->send('done', [
+                    'created_at' => $message->created_at->toJSON(),
+                    'elapsed_ms' => $message->elapsed_ms,
+                    'citations' => $citations,
+                    'clarifications' => $clarifications,
+                ]);
+            } finally {
+                Cache::forget($this->answeringKey($conversation));
             }
-
-            // 되묻는 차례에는 결론이 없으므로 근거 조항 미표시
-            [$content, $clarifications] = $this->splitClarifications($answer);
-            $citations = $clarifications === [] ? $citations : [];
-            $message = $conversation->messages()->create([
-                'role' => 'assistant',
-                'content' => $content,
-                'citations' => $citations,
-                'clarifications' => $clarifications,
-                'provider' => config('ai.default'),
-                'model' => config('ai.providers.'.config('ai.default').'.models.text.default'),
-                'elapsed_ms' => intdiv(hrtime(true) - $startedAt, 1_000_000),
-            ]);
-            yield $this->event('done', [
-                'created_at' => $message->created_at->toJSON(),
-                'elapsed_ms' => $message->elapsed_ms,
-                'citations' => $citations,
-                'clarifications' => $clarifications,
-            ]);
-        }, endStreamWith: null);
+        }, 200, [
+            'Content-Type' => 'text/event-stream',
+            'Cache-Control' => 'no-cache',
+            'X-Accel-Buffering' => 'no',
+        ]);
     }
 
     /**
@@ -285,10 +299,23 @@ class ChatController extends Controller
         return [trim(mb_substr($answer, 0, $position)), $clarifications];
     }
 
-    // 문자열 데이터도 JSON으로 인코딩하여 줄바꿈이 SSE 이벤트 구분자로 해석되지 않도록 처리
-    private function event(string $name, mixed $data): StreamedEvent
+    // 문자열 데이터도 JSON으로 인코딩하여 줄바꿈이 SSE 이벤트 구분자로 해석되지 않도록 처리 (연결이 끊긴 뒤에는 전송 생략)
+    private function send(string $name, mixed $data): void
     {
-        return new StreamedEvent($name, json_encode($data, JSON_UNESCAPED_UNICODE));
+        if (connection_aborted()) {
+            return;
+        }
+
+        echo "event: {$name}\ndata: ".json_encode($data, JSON_UNESCAPED_UNICODE)."\n\n";
+        if (ob_get_level() > 0) {
+            ob_flush();
+        }
+        flush();
+    }
+
+    private function answeringKey(Conversation $conversation): string
+    {
+        return "conversation:{$conversation->id}:answering";
     }
 
     private function clientId(Request $request): string

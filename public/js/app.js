@@ -1,4 +1,13 @@
-const state = { documentId: null, conversationId: null, documents: [], lastDate: null };
+// streams: 이 페이지에서 답변 수신 중인 대화별 말풍선, viewToken: 대화 전환 시 이전 확인 요청 무효화용
+const state = {
+  documentId: null,
+  conversationId: null,
+  documents: [],
+  lastDate: null,
+  streams: new Map(),
+  viewToken: 0,
+  polling: null,
+};
 
 const timeFormat = new Intl.DateTimeFormat("ko-KR", { hour: "numeric", minute: "2-digit" });
 const dateFormat = new Intl.DateTimeFormat("ko-KR", { dateStyle: "full" });
@@ -182,6 +191,7 @@ async function deleteDocument(doc) {
 async function selectDocument(id) {
   state.documentId = id;
   state.conversationId = null;
+  updateComposer();
   $("conversation-section").hidden = false;
   $("ask-form").hidden = false;
   $("chat-empty").hidden = true;
@@ -214,13 +224,22 @@ async function deleteConversation(conv) {
   if (conv.id === state.conversationId) {
     state.conversationId = null;
     clearMessages();
+    updateComposer();
   }
   await loadConversations();
 }
 
 async function selectConversation(id) {
   state.conversationId = id;
-  const messages = await api(`/api/conversations/${id}/messages`);
+  const token = ++state.viewToken;
+  const data = await api(`/api/conversations/${id}/messages`);
+  if (token !== state.viewToken) return;
+  renderConversation(id, data, token);
+  await loadConversations();
+}
+
+// 이 페이지에서 수신 중인 답변은 말풍선을 다시 붙이고, 새로고침 등으로 수신 중이 아니면 저장될 때까지 확인
+function renderConversation(id, { messages, answering }, token) {
   clearMessages();
   for (const m of messages) {
     const view = renderMessage(m.role, m.content, m.created_at, m.elapsed_ms);
@@ -229,13 +248,44 @@ async function selectConversation(id) {
       view.setClarifications(m.clarifications ?? []);
     }
   }
-  await loadConversations();
+
+  const live = state.streams.get(id);
+  if (live) $("messages").append(live);
+  else if (answering) waitForAnswer(id, token, messages.at(-1)?.created_at);
+  updateComposer();
   scrollToBottom();
+}
+
+function waitForAnswer(id, token, since) {
+  const view = renderMessage("assistant", "");
+  view.body.classList.add("pending");
+  state.polling = typingIndicator(since ? new Date(since).getTime() : Date.now());
+  view.body.append(state.polling.el);
+
+  const poll = async () => {
+    if (token !== state.viewToken || state.conversationId !== id) return;
+    const data = await api(`/api/conversations/${id}/messages`).catch(() => null);
+    if (token !== state.viewToken || state.conversationId !== id) return;
+    if (data && !data.answering) {
+      renderConversation(id, data, token);
+      loadConversations();
+      return;
+    }
+    setTimeout(poll, 2000);
+  };
+  setTimeout(poll, 2000);
+}
+
+// 보고 있는 대화가 답변 중일 때만 전송 차단 (다른 대화는 질문 가능)
+function updateComposer() {
+  $("ask-button").disabled = state.streams.has(state.conversationId) || state.polling !== null;
 }
 
 function clearMessages() {
   $("messages").replaceChildren();
   state.lastDate = null;
+  state.polling?.stop();
+  state.polling = null;
 }
 
 function timeElement(className, date, format) {
@@ -317,6 +367,7 @@ function renderMessage(role, content, createdAt, elapsedMs) {
   scrollToBottom();
 
   return {
+    wrap,
     body,
     // 답변 대기 말풍선을 오류 말풍선으로 전환
     markError(message) {
@@ -388,7 +439,7 @@ function renderMessage(role, content, createdAt, elapsedMs) {
 }
 
 // 답변 첫 글자가 올 때까지 점 애니메이션과 경과 시간 표시, stop()으로 타이머 해제
-function typingIndicator() {
+function typingIndicator(startedAt = Date.now()) {
   const wrap = document.createElement("span");
   wrap.className = "loading";
   wrap.setAttribute("role", "status");
@@ -401,8 +452,7 @@ function typingIndicator() {
   elapsed.setAttribute("aria-hidden", "true");
   wrap.append(dots, elapsed);
 
-  const startedAt = performance.now();
-  const tick = () => (elapsed.textContent = formatSeconds(performance.now() - startedAt));
+  const tick = () => (elapsed.textContent = formatSeconds(Date.now() - startedAt));
   tick();
   const timer = setInterval(tick, 100);
   return { el: wrap, stop: () => clearInterval(timer) };
@@ -438,19 +488,21 @@ async function ask(event) {
     return;
   }
 
-  const button = $("ask-button");
-  button.disabled = true;
+  $("ask-button").disabled = true;
   setStatus(status, "");
+  // 수신 중 다른 대화로 이동해도 이 대화 기준으로 처리
+  let convId = state.conversationId;
   let answer = null;
   let loading = null;
+  const viewing = () => state.conversationId === convId;
   try {
-    if (!state.conversationId) {
+    if (!convId) {
       const conv = await api(`/api/documents/${state.documentId}/conversations`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: question }),
       });
-      state.conversationId = conv.id;
+      state.conversationId = convId = conv.id;
       await loadConversations();
     }
 
@@ -460,9 +512,11 @@ async function ask(event) {
     answer.body.classList.add("pending");
     loading = typingIndicator();
     answer.body.append(loading.el);
+    state.streams.set(convId, answer.wrap);
+    updateComposer();
 
     // EventSource는 GET만 지원하여 질문 본문 전송이 불가능하므로 fetch 스트림으로 수신
-    const res = await fetch(`/api/conversations/${state.conversationId}/messages`, {
+    const res = await fetch(`/api/conversations/${convId}/messages`, {
       method: "POST",
       headers: headers({ "Content-Type": "application/json" }),
       body: JSON.stringify({ question }),
@@ -490,7 +544,7 @@ async function ask(event) {
         }
         raw += data;
         setMarkdown(answer.body, visibleAnswer(raw));
-        scrollToBottom();
+        if (viewing()) scrollToBottom();
       }
       if (type === "error") {
         failed = true;
@@ -503,14 +557,14 @@ async function ask(event) {
     if (!failed) {
       answer.setCitations(citations);
       answer.setClarifications(clarifications);
-      setStatus(status, "");
     }
   } catch (err) {
-    setStatus(status, err.message, true);
+    if (viewing()) setStatus(status, err.message, true);
     if (answer?.body.classList.contains("pending")) answer.markError(err.message);
   } finally {
     loading?.stop();
-    button.disabled = false;
+    state.streams.delete(convId);
+    updateComposer();
   }
 }
 
@@ -547,6 +601,7 @@ $("ask-form").addEventListener("submit", ask);
 $("new-conversation").addEventListener("click", () => {
   state.conversationId = null;
   clearMessages();
+  updateComposer();
   loadConversations();
   $("question").focus();
 });
