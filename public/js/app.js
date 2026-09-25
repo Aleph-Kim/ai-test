@@ -362,7 +362,8 @@ function renderMessage(role, content, createdAt, elapsedMs) {
         label.textContent = c.label;
         const clause = document.createElement("div");
         clause.className = "clause";
-        clause.textContent = c.text;
+        // 조항 본문이 라벨과 같은 문구로 시작하므로 라벨이 두 번 보이지 않게 제거
+        clause.textContent = c.text.startsWith(c.label) ? c.text.slice(c.label.length).trim() : c.text;
         li.append(label, clause);
         ul.append(li);
       }

@@ -13,6 +13,9 @@ class Chunk extends Model
     // 줄 맨 앞의 "제N조", "제N조의M", 뒤따르는 괄호 제목까지 (본문 중 "제3조에 따라" 같은 인용은 제외)
     private const ARTICLE = '/^[ \t]*제\s*\d+\s*조(?:의\s*\d+)?(?:\s*\([^)\n]*\))?(?=\s|$)/mu';
 
+    // 조항 사이에 끼는 "제6장 임금", "제2절 휴가", "부칙" 같은 제목 줄 (본문 문장과 구분하기 위해 40자 이하로 한정)
+    private const HEADING = '/^[ \t]*(?:제\s*\d+\s*(?:장|절|관)(?:[ \t]+[^\n]{0,40})?|부[ \t]*칙(?:[ \t]*\([^)\n]*\))?)[ \t]*$/mu';
+
     private const PARAGRAPH_LIMIT = 1000;
 
     public $timestamps = false;
@@ -42,17 +45,27 @@ class Chunk extends Model
         }
 
         $chunks = [];
-        $preface = trim(substr($text, 0, $matches[0][1]));
+        $preface = self::removeHeadings(substr($text, 0, $matches[0][1]));
         if ($preface !== '') {
             $chunks[] = ['label' => '서문', 'text' => $preface];
         }
 
         foreach ($matches as $i => [$label, $offset]) {
             $end = $matches[$i + 1][1] ?? strlen($text);
-            $chunks[] = ['label' => trim($label), 'text' => trim(substr($text, $offset, $end - $offset))];
+            $chunks[] = ['label' => trim($label), 'text' => self::removeHeadings(substr($text, $offset, $end - $offset))];
         }
 
         return $chunks;
+    }
+
+    /**
+     * 조항 본문에 딸려 온 장·절·부칙 제목 줄 제거
+     */
+    public static function removeHeadings(string $text): string
+    {
+        $text = preg_replace(self::HEADING, '', $text);
+
+        return trim(preg_replace('/\n[ \t]*(?:\n[ \t]*){2,}/u', "\n\n", $text));
     }
 
     private static function splitParagraphs(string $text): array

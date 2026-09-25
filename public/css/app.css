@@ -48,6 +48,7 @@ h1, h2 { margin: 0; }
 
 .visually-hidden {
   position: absolute;
+  user-select: none;
   width: 1px;
   height: 1px;
   overflow: hidden;
