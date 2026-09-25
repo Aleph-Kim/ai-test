@@ -362,15 +362,12 @@ input[type="file"] { width: 100%; font-size: 0.85rem; color: var(--secondary-lab
 
 .date-divider::before, .date-divider::after { content: ""; flex: 1; border-top: 1px solid var(--separator); }
 
-.clarifications {
+.bubble .clarifications {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin: 8px 0 0;
-  padding: 12px 14px 12px 32px;
-  border-radius: var(--radius);
-  background: var(--fill);
-  font-size: 0.9rem;
+  margin-top: 10px;
+  padding-left: 20px;
 }
 
 .clarifications p { margin: 0; }

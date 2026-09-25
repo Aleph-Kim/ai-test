@@ -369,7 +369,7 @@ function renderMessage(role, content, createdAt, elapsedMs) {
       details.append(summary, ul);
       wrap.append(details);
     },
-    // 사전 질문 카드: 선택지가 있으면 버튼, 질문이 하나뿐이면 선택 즉시 전송
+    // 사전 질문 목록을 답변 말풍선 안에 표시: 선택지가 있으면 버튼, 질문이 하나뿐이면 선택 즉시 전송
     setClarifications(clarifications) {
       if (!clarifications.length) return;
       const list = document.createElement("ol");
@@ -403,7 +403,7 @@ function renderMessage(role, content, createdAt, elapsedMs) {
         }
         list.append(item);
       }
-      wrap.append(list);
+      body.append(list);
     },
   };
 }
