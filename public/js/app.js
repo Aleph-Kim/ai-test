@@ -60,7 +60,7 @@ function listItem(label, current, onSelect, onRename) {
     const edit = document.createElement("button");
     edit.type = "button";
     edit.className = "edit-button";
-    edit.textContent = "✎";
+    edit.textContent = "수정";
     edit.setAttribute("aria-label", `${label} 이름 수정`);
     edit.addEventListener("click", () => startRename(li, label, onRename));
     li.append(edit);
