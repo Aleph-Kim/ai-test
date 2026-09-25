@@ -578,7 +578,7 @@ async function upload(event) {
   event.preventDefault();
   const form = event.target;
   const status = $("upload-status");
-  const button = form.querySelector("button");
+  const button = form.querySelector('button[type="submit"]');
   if (!$("upload-file").files.length) {
     setStatus(status, "파일을 고르세요.", true);
     return;
