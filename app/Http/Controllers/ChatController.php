@@ -121,14 +121,14 @@ class ChatController extends Controller
                 return;
             }
 
-            $conversation->messages()->create([
+            $message = $conversation->messages()->create([
                 'role' => 'assistant',
                 'content' => $answer,
                 'citations' => $citations,
                 'provider' => config('ai.default'),
                 'model' => config('ai.providers.'.config('ai.default').'.models.text.default'),
             ]);
-            yield $this->event('done', true);
+            yield $this->event('done', ['created_at' => $message->created_at->toJSON()]);
         }, endStreamWith: null);
     }
 

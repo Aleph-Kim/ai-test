@@ -188,7 +188,7 @@ async function selectConversation(id) {
   const messages = await api(`/api/conversations/${id}/messages`);
   clearMessages();
   for (const m of messages) {
-    const view = renderMessage(m.role, m.content, m.role === "user" ? m.created_at : null);
+    const view = renderMessage(m.role, m.content, m.created_at);
     if (m.role === "assistant") view.setCitations(m.citations);
   }
   await loadConversations();
@@ -244,6 +244,9 @@ function renderMessage(role, content, createdAt) {
 
   return {
     body,
+    setTime(createdAt) {
+      body.after(timeElement("message-time", new Date(createdAt), timeFormat));
+    },
     setCitations(citations) {
       if (!citations.length) return;
       const details = document.createElement("details");
@@ -332,6 +335,7 @@ async function ask(event) {
     let failed = false;
     await readEvents(res, (type, data) => {
       if (type === "citations") citations = data;
+      if (type === "done") answer.setTime(data.created_at);
       if (type === "delta") {
         if (answer.body.classList.contains("pending")) {
           answer.body.classList.remove("pending");
