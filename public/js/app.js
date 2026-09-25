@@ -190,8 +190,8 @@ async function selectConversation(id) {
   for (const m of messages) {
     const view = renderMessage(m.role, m.content, m.created_at, m.elapsed_ms);
     if (m.role === "assistant") {
-      view.setCitations(m.citations);
-      view.setFollowUps(m.follow_ups ?? []);
+      view.setCitations(m.citations ?? []);
+      view.setClarifications(m.clarifications ?? []);
     }
   }
   await loadConversations();
@@ -213,16 +213,25 @@ function timeElement(className, date, format) {
 
 const formatSeconds = (ms) => `${Math.floor(ms / 1000)}초`;
 
-const FOLLOW_UP_MARKER = "[[꼬리질문]]";
+const CLARIFY_MARKER = "[[사전질문]]";
 
-// 스트리밍 중 꼬리 질문 블록(서버가 분리해 버튼으로 전달)과 아직 덜 도착한 표시 조각은 본문에서 숨김
+// 스트리밍 중 사전 질문 블록(서버가 분리해 질문 카드로 전달)과 아직 덜 도착한 표시 조각은 본문에서 숨김
 function visibleAnswer(raw) {
-  const index = raw.indexOf(FOLLOW_UP_MARKER);
+  const index = raw.indexOf(CLARIFY_MARKER);
   if (index >= 0) return raw.slice(0, index);
-  for (let k = FOLLOW_UP_MARKER.length - 1; k > 0; k--) {
-    if (raw.endsWith(FOLLOW_UP_MARKER.slice(0, k))) return raw.slice(0, -k);
+  for (let k = CLARIFY_MARKER.length - 1; k > 0; k--) {
+    if (raw.endsWith(CLARIFY_MARKER.slice(0, k))) return raw.slice(0, -k);
   }
   return raw;
+}
+
+// 선택지 답을 입력칸에 "질문 선택지" 한 줄로 채움 (같은 질문을 다시 고르면 그 줄만 교체)
+function fillAnswer(question, option) {
+  const input = $("question");
+  const lines = input.value.split("\n").filter((line) => line.trim() && !line.startsWith(`${question} `));
+  lines.push(`${question} ${option}`);
+  input.value = lines.join("\n");
+  input.focus();
 }
 
 // 답변 시각 옆에 소요 시간 표시 (예: 오후 9:14 · 12초)
@@ -297,24 +306,39 @@ function renderMessage(role, content, createdAt, elapsedMs) {
       details.append(summary, ul);
       wrap.append(details);
     },
-    // 누르면 해당 문장을 그대로 다음 질문으로 전송
-    setFollowUps(followUps) {
-      if (!followUps.length) return;
-      const list = document.createElement("div");
-      list.className = "follow-ups";
-      list.setAttribute("role", "group");
-      list.setAttribute("aria-label", "꼬리 질문");
-      for (const text of followUps) {
-        const chip = document.createElement("button");
-        chip.type = "button";
-        chip.className = "follow-up";
-        chip.textContent = text;
-        chip.addEventListener("click", () => {
-          if ($("ask-button").disabled) return;
-          $("question").value = text;
-          $("ask-form").requestSubmit();
-        });
-        list.append(chip);
+    // 사전 질문 카드: 선택지가 있으면 버튼, 질문이 하나뿐이면 선택 즉시 전송
+    setClarifications(clarifications) {
+      if (!clarifications.length) return;
+      const list = document.createElement("ol");
+      list.className = "clarifications";
+      list.setAttribute("aria-label", "확인이 필요한 사항");
+      for (const { question, options } of clarifications) {
+        const item = document.createElement("li");
+        const text = document.createElement("p");
+        text.textContent = question;
+        item.append(text);
+        if (options.length) {
+          const choices = document.createElement("div");
+          choices.className = "choices";
+          for (const option of options) {
+            const choice = document.createElement("button");
+            choice.type = "button";
+            choice.className = "choice";
+            choice.textContent = option;
+            choice.addEventListener("click", () => {
+              if ($("ask-button").disabled) return;
+              if (clarifications.length === 1) {
+                $("question").value = option;
+                $("ask-form").requestSubmit();
+              } else {
+                fillAnswer(question, option);
+              }
+            });
+            choices.append(choice);
+          }
+          item.append(choices);
+        }
+        list.append(item);
       }
       wrap.append(list);
     },
@@ -409,12 +433,12 @@ async function ask(event) {
     let citations = [];
     let failed = false;
     let raw = "";
-    let followUps = [];
+    let clarifications = [];
     await readEvents(res, (type, data) => {
-      if (type === "citations") citations = data;
       if (type === "done") {
         answer.setTime(data.created_at, data.elapsed_ms);
-        followUps = data.follow_ups;
+        citations = data.citations;
+        clarifications = data.clarifications;
       }
       if (type === "delta") {
         if (answer.body.classList.contains("pending")) {
@@ -435,7 +459,7 @@ async function ask(event) {
     });
     if (!failed) {
       answer.setCitations(citations);
-      answer.setFollowUps(followUps);
+      answer.setClarifications(clarifications);
       setStatus(status, "");
     }
   } catch (err) {

@@ -353,9 +353,21 @@ input[type="file"] { width: 100%; font-size: 0.85rem; color: var(--secondary-lab
 
 .date-divider::before, .date-divider::after { content: ""; flex: 1; border-top: 1px solid var(--separator); }
 
-.follow-ups { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.clarifications {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 8px 0 0;
+  padding: 12px 14px 12px 32px;
+  border-radius: var(--radius);
+  background: var(--fill);
+  font-size: 0.9rem;
+}
 
-.follow-up {
+.clarifications p { margin: 0; }
+.choices { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+
+.choice {
   min-height: 32px;
   padding: 5px 12px;
   border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
@@ -363,10 +375,9 @@ input[type="file"] { width: 100%; font-size: 0.85rem; color: var(--secondary-lab
   background: var(--surface);
   color: var(--accent);
   font-size: 0.85rem;
-  text-align: left;
 }
 
-.follow-up:hover { background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
+.choice:hover { background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
 
 .citations { margin-top: 6px; max-width: 100%; font-size: 0.85rem; }
 .citations summary { padding: 2px 4px; color: var(--accent); cursor: pointer; }
@@ -430,7 +441,7 @@ input[type="file"] { width: 100%; font-size: 0.85rem; color: var(--secondary-lab
   .sidebar { border-right: 0; border-bottom: 1px solid var(--separator); overflow: visible; }
   .chat { min-height: 80dvh; }
   .message { max-width: 88%; }
-  .row-button, .delete-button, .send-button, .filled-button, .follow-up { min-height: 44px; }
+  .row-button, .delete-button, .send-button, .filled-button, .choice { min-height: 44px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
