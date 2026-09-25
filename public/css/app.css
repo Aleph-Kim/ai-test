@@ -102,7 +102,7 @@ h1, h2 { margin: 0; }
 .edit-button {
   flex: none;
   min-height: 36px;
-  padding: 0 6px;
+  padding: 0 4px;
   border: 0;
   background: transparent;
   font-size: 0.8rem;
@@ -160,7 +160,7 @@ button:disabled { cursor: progress; opacity: 0.55; }
 .delete-button {
   flex: none;
   min-height: 36px;
-  padding: 0 10px;
+  padding: 0 8px 0 4px;
   border: 0;
   background: transparent;
   font-size: 0.8rem;
