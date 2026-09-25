@@ -387,6 +387,14 @@ input[type="file"] { width: 100%; font-size: 0.85rem; color: var(--secondary-lab
 
 .choice:hover { background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
 
+.calculation { margin-top: 6px; max-width: 100%; font-size: 0.85rem; }
+.calculation summary { padding: 2px 4px; color: var(--accent); cursor: pointer; }
+.calculation-body { margin-top: 6px; padding: 10px 12px; border-radius: var(--radius); background: var(--fill); }
+.calculation-body > :first-child { margin-top: 0; }
+.calculation-body > :last-child { margin-bottom: 0; }
+.calculation-body p, .calculation-body ol, .calculation-body ul { margin: 0 0 6px; }
+.calculation-body ol, .calculation-body ul { padding-left: 20px; }
+
 .citations { margin-top: 6px; max-width: 100%; font-size: 0.85rem; }
 .citations summary { padding: 2px 4px; color: var(--accent); cursor: pointer; }
 .citations ul { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }

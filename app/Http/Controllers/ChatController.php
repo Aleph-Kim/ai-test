@@ -35,6 +35,11 @@ class ChatController extends Controller
 
     private const MAX_CLARIFICATIONS = 3;
 
+    // 모델이 답변 맨 앞에 쓰는 계산 과정 블록 (본문과 분리해 별도 섹션으로 노출)
+    private const CALC_START = '[[계산과정]]';
+
+    private const CALC_END = '[[/계산과정]]';
+
     private const INSTRUCTIONS = <<<'TXT'
         당신은 사내 규정을 직원에게 설명하는 도우미입니다.
         - 아래 [규정 조항]에 있는 내용만 근거로 한국어로 쉽게 설명합니다.
@@ -64,15 +69,19 @@ class ChatController extends Controller
         - 법률·인사 용어는 괄호로 쉽게 풀어 줍니다. (예: 평균임금(최근 3개월 동안 받은 임금의 하루 평균))
         - 각 항목 끝에 그 내용의 근거 조항 라벨을 괄호로 붙입니다. (예: "1년간 쓰지 않은 연차는 사라져요 (제26조(연차휴가의 사용))")
           [규정 조항]에 없는 일반 상식이나 법령 내용은 쓰지 않습니다.
-        - 일수·금액·기간을 계산해야 하는 답변은 결론보다 먼저 **계산 과정**을 씁니다. (먼저 계산해야 결론이 정확해짐)
+        - 일수·금액·기간을 계산해야 하는 답변은 결론보다 먼저, 답변 맨 앞에 아래 형식의 계산 과정 블록을 씁니다.
+          (먼저 계산해야 결론이 정확해짐. 이 블록은 화면에서 본문과 분리된 별도 섹션으로 보여 줌)
+          [[계산과정]]
           1) 적용되는 조항의 항을 모두 나열하고, 각 항이 이 상황에 어떻게 적용되는지(포함·차감·한도) 한 줄씩 씁니다.
           2) 직원 정보를 대입한 식을 씁니다. (예: 최초 1년 연차 15일(②항 휴가 포함, ③항) - 사용한 15일 = 0일)
           3) 결과를 씁니다.
+          [[/계산과정]]
+          블록 안에는 계산만 쓰고, 결론과 설명은 블록이 끝난 뒤 본문에 씁니다.
           계산 도중 필요한 정보가 없거나 규정 해석이 둘 이상으로 갈리면, 결론 대신 사전 질문으로 묻습니다.
           계산 과정을 쓴 뒤 아래 1번 결론 문장은 반드시 계산 결과와 같은 값으로 씁니다.
         - 아래 순서로 씁니다. 해당 내용이 규정에 없는 항목은 생략합니다.
           1. 결론 문장: 판단의 전제와 직원 상황에 맞춘 결론 한 문장 (예: "입사 3년 차이시니 육아휴직은 최대 1년까지 쓸 수 있어요.")
-             계산 과정이 있으면 그 바로 다음에, 없으면 답변 첫 문장으로 씁니다.
+             계산 과정 블록이 있으면 블록 바로 다음에, 없으면 답변 첫 문장으로 씁니다.
           2. **자세히 알려드릴게요**: 기간·금액·횟수·조건·예외를 직원 상황에 대입해 3~5개 항목으로 구체적으로 설명합니다.
              계산이 가능하면 직원 상황으로 직접 계산한 값을 보여 줍니다. (예: "2024년 3월 입사라면 올해 연차는 15일이에요.")
           3. **이렇게 하면 돼요**: 신청 방법, 제출 서류, 기한 등 직원이 해야 할 일
@@ -132,7 +141,7 @@ class ChatController extends Controller
         $this->authorizeConversation($request, $conversation);
 
         return response()->json(
-            $conversation->messages()->orderBy('id')->get(['role', 'content', 'citations', 'clarifications', 'provider', 'model', 'elapsed_ms', 'created_at'])
+            $conversation->messages()->orderBy('id')->get(['role', 'content', 'calculation', 'citations', 'clarifications', 'provider', 'model', 'elapsed_ms', 'created_at'])
         );
     }
 
@@ -188,11 +197,13 @@ class ChatController extends Controller
             }
 
             // 되묻는 차례에는 결론이 없으므로 근거 조항 미표시
+            [$calculation, $answer] = $this->splitCalculation($answer);
             [$content, $clarifications] = $this->splitClarifications($answer);
             $citations = $clarifications === [] ? $this->citations($conversation->document_id, $content, $found) : [];
             $message = $conversation->messages()->create([
                 'role' => 'assistant',
                 'content' => $content,
+                'calculation' => $calculation,
                 'citations' => $citations,
                 'clarifications' => $clarifications,
                 'provider' => config('ai.default'),
@@ -202,6 +213,7 @@ class ChatController extends Controller
             yield $this->event('done', [
                 'created_at' => $message->created_at->toJSON(),
                 'elapsed_ms' => $message->elapsed_ms,
+                'calculation' => $calculation,
                 'citations' => $citations,
                 'clarifications' => $clarifications,
             ]);
@@ -310,6 +322,25 @@ class ChatController extends Controller
         $questions = collect($message->clarifications)->map(fn (array $c) => '- '.$c['question'])->join("\n");
 
         return "{$message->content}\n{$questions}";
+    }
+
+    /**
+     * 답변 앞의 계산 과정 블록과 나머지 답변 분리 (블록이 없거나 닫히지 않았으면 계산 과정 없음)
+     *
+     * @return array{0: ?string, 1: string}
+     */
+    private function splitCalculation(string $answer): array
+    {
+        $start = mb_strpos($answer, self::CALC_START);
+        $end = mb_strpos($answer, self::CALC_END);
+        if ($start === false || $end === false || $end < $start) {
+            return [null, str_replace([self::CALC_START, self::CALC_END], '', $answer)];
+        }
+
+        $calculation = trim(mb_substr($answer, $start + mb_strlen(self::CALC_START), $end - $start - mb_strlen(self::CALC_START)));
+        $rest = mb_substr($answer, 0, $start).mb_substr($answer, $end + mb_strlen(self::CALC_END));
+
+        return [$calculation !== '' ? $calculation : null, trim($rest)];
     }
 
     /**

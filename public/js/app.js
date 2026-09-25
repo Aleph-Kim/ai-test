@@ -236,6 +236,7 @@ async function selectConversation(id) {
   for (const m of messages) {
     const view = renderMessage(m.role, m.content, m.created_at, m.elapsed_ms);
     if (m.role === "assistant") {
+      view.setCalculation(m.calculation);
       view.setCitations(m.citations ?? []);
       view.setClarifications(m.clarifications ?? []);
     }
@@ -269,15 +270,32 @@ function timeElement(className, date, format) {
 const formatSeconds = (ms) => `${Math.floor(ms / 1000)}초`;
 
 const CLARIFY_MARKER = "[[사전질문]]";
+const CALC_START = "[[계산과정]]";
+const CALC_END = "[[/계산과정]]";
 
-// 스트리밍 중 사전 질문 블록(서버가 분리해 질문 카드로 전달)과 아직 덜 도착한 표시 조각은 본문에서 숨김
-function visibleAnswer(raw) {
-  const index = raw.indexOf(CLARIFY_MARKER);
-  if (index >= 0) return raw.slice(0, index);
-  for (let k = CLARIFY_MARKER.length - 1; k > 0; k--) {
-    if (raw.endsWith(CLARIFY_MARKER.slice(0, k))) return raw.slice(0, -k);
+// 아직 덜 도착한 표시의 앞부분 조각이 본문 끝에 잠깐 보이지 않도록 숨김
+function hidePartialMarker(text, marker) {
+  for (let k = marker.length - 1; k > 0; k--) {
+    if (text.endsWith(marker.slice(0, k))) return text.slice(0, -k);
   }
-  return raw;
+  return text;
+}
+
+// 스트리밍 중 계산 과정 블록과 사전 질문 블록(서버가 분리해 따로 전달)은 본문에서 숨김
+function visibleAnswer(raw) {
+  let text = raw;
+  const start = text.indexOf(CALC_START);
+  if (start >= 0) {
+    const end = text.indexOf(CALC_END, start);
+    if (end < 0) return text.slice(0, start);
+    text = text.slice(0, start) + text.slice(end + CALC_END.length);
+  } else {
+    text = hidePartialMarker(text, CALC_START);
+  }
+
+  const index = text.indexOf(CLARIFY_MARKER);
+  if (index >= 0) return text.slice(0, index);
+  return hidePartialMarker(text, CLARIFY_MARKER);
 }
 
 // 선택지 답을 입력칸에 "질문 선택지" 한 줄로 채움 (같은 질문을 다시 고르면 그 줄만 교체)
@@ -348,6 +366,18 @@ function renderMessage(role, content, createdAt, elapsedMs) {
     },
     setTime(createdAt, elapsedMs) {
       body.after(messageTime(createdAt, elapsedMs));
+    },
+    setCalculation(calculation) {
+      if (!calculation) return;
+      const details = document.createElement("details");
+      details.className = "calculation";
+      const summary = document.createElement("summary");
+      summary.textContent = "계산 과정";
+      const content = document.createElement("div");
+      content.className = "calculation-body";
+      setMarkdown(content, calculation);
+      details.append(summary, content);
+      wrap.append(details);
     },
     setCitations(citations) {
       if (!citations.length) return;
@@ -502,20 +532,25 @@ async function ask(event) {
     let failed = false;
     let raw = "";
     let clarifications = [];
+    let calculation = null;
     await readEvents(res, (type, data) => {
       if (type === "done") {
         answer.setTime(data.created_at, data.elapsed_ms);
+        calculation = data.calculation;
         citations = data.citations;
         clarifications = data.clarifications;
       }
       if (type === "delta") {
+        raw += data;
+        const visible = visibleAnswer(raw);
+        // 계산 과정을 쓰는 동안에는 본문이 비어 있으므로 로딩 표시 유지
+        if (!visible.trim()) return;
         if (answer.body.classList.contains("pending")) {
           loading.stop();
           answer.body.classList.remove("pending");
           answer.body.textContent = "";
         }
-        raw += data;
-        setMarkdown(answer.body, visibleAnswer(raw));
+        setMarkdown(answer.body, visible);
         if (viewing()) scrollToBottom();
       }
       if (type === "error") {
@@ -527,6 +562,7 @@ async function ask(event) {
     // 마지막 채팅 시간과 목록 순서 갱신
     loadConversations();
     if (!failed) {
+      answer.setCalculation(calculation);
       answer.setCitations(citations);
       answer.setClarifications(clarifications);
     }
