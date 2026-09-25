@@ -1,24 +1,32 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\API;
 
 use App\Models\Chunk;
 use App\Models\Document;
 use App\Services\NvidiaEmbeddingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Throwable;
 
+/**
+ * @tags 규칙 문서
+ */
 class DocumentController extends Controller
 {
+    /**
+     * 문서 목록 조회
+     */
     public function index(): JsonResponse
     {
-        return response()->json(Document::latest('id')->get(['id', 'title', 'filename', 'created_at']));
+        return $this->responseData(data: ['list' => Document::latest('id')->get(['id', 'title', 'filename', 'created_at'])]);
     }
 
+    /**
+     * 문서 업로드 (조항 분할·임베딩 후 저장)
+     */
     public function store(Request $request, NvidiaEmbeddingService $embeddings): JsonResponse
     {
         $validated = $request->validate([
@@ -48,7 +56,7 @@ class DocumentController extends Controller
         } catch (Throwable $e) {
             $message = $this->aiFailure($e, '조항 임베딩', ['filename' => $file->getClientOriginalName()]);
 
-            return response()->json(['message' => $message], 502);
+            return $this->responseData(502, $message);
         }
 
         $document = DB::transaction(function () use ($validated, $file, $content, $chunks, $vectors, $embeddings) {
@@ -69,9 +77,12 @@ class DocumentController extends Controller
             return $document;
         });
 
-        return response()->json(['id' => $document->id], 201);
+        return $this->responseData(msg: '등록되었습니다.', data: ['id' => $document->id]);
     }
 
+    /**
+     * 문서명 수정
+     */
     public function update(Request $request, Document $document): JsonResponse
     {
         $validated = $request->validate(['title' => ['required', 'string', 'max:255']], [
@@ -81,13 +92,16 @@ class DocumentController extends Controller
 
         $document->update(['title' => trim($validated['title'])]);
 
-        return response()->json(['title' => $document->title]);
+        return $this->responseData(msg: '수정되었습니다.', data: ['title' => $document->title]);
     }
 
-    public function destroy(Document $document): Response
+    /**
+     * 문서 삭제 (조항·임베딩·대화 함께 삭제)
+     */
+    public function destroy(Document $document): JsonResponse
     {
         $document->delete();
 
-        return response()->noContent();
+        return $this->responseData(msg: '삭제되었습니다.');
     }
 }

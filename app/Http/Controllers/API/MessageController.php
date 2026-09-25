@@ -1,80 +1,40 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\API;
 
 use App\Models\Conversation;
-use App\Models\Document;
 use App\Services\NvidiaEmbeddingService;
 use App\Services\RegulationChatService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
 use Illuminate\Http\StreamedEvent;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
 
-class ChatController extends Controller
+/**
+ * @tags 메시지
+ */
+class MessageController extends Controller
 {
     public function __construct(private RegulationChatService $regulationChat) {}
 
-    public function conversations(Request $request, Document $document): JsonResponse
-    {
-        return response()->json(
-            $document->conversations()
-                ->where('client_id', $this->clientId($request))
-                ->select(['id', 'title', 'created_at'])
-                ->withMax('messages as last_message_at', 'created_at')
-                ->withCasts(['last_message_at' => 'datetime'])
-                ->orderByDesc('last_message_at')
-                ->orderByDesc('id')
-                ->get()
-        );
-    }
-
-    public function createConversation(Request $request, Document $document): JsonResponse
-    {
-        $validated = $request->validate(['title' => ['required', 'string']]);
-
-        $conversation = $document->conversations()->create([
-            'client_id' => $this->clientId($request),
-            'title' => mb_substr(trim($validated['title']), 0, 30),
-        ]);
-
-        return response()->json(['id' => $conversation->id], 201);
-    }
-
-    public function renameConversation(Request $request, Conversation $conversation): JsonResponse
-    {
-        $this->authorizeConversation($request, $conversation);
-        $validated = $request->validate(['title' => ['required', 'string', 'max:255']], [
-            'title.required' => '대화명을 입력하세요.',
-            'title.max' => '대화명은 255자 이하로 입력하세요.',
-        ]);
-
-        $conversation->update(['title' => trim($validated['title'])]);
-
-        return response()->json(['title' => $conversation->title]);
-    }
-
-    public function destroyConversation(Request $request, Conversation $conversation): Response
-    {
-        $this->authorizeConversation($request, $conversation);
-        $conversation->delete();
-
-        return response()->noContent();
-    }
-
-    public function messages(Request $request, Conversation $conversation): JsonResponse
+    /**
+     * 대화 메시지 목록 조회
+     */
+    public function index(Request $request, Conversation $conversation): JsonResponse
     {
         $this->authorizeConversation($request, $conversation);
 
-        return response()->json(
-            $conversation->messages()->orderBy('id')->get(['role', 'content', 'calculation', 'citations', 'clarifications', 'provider', 'model', 'elapsed_ms', 'created_at'])
-        );
+        $list = $conversation->messages()->orderBy('id')->get(['role', 'content', 'calculation', 'citations', 'clarifications', 'provider', 'model', 'elapsed_ms', 'created_at']);
+
+        return $this->responseData(data: ['list' => $list]);
     }
 
-    public function ask(Request $request, Conversation $conversation): StreamedResponse
+    /**
+     * 질문 전송 및 답변 스트리밍 (SSE: delta → done 또는 error)
+     */
+    public function store(Request $request, Conversation $conversation): StreamedResponse
     {
         $startedAt = hrtime(true);
         $this->authorizeConversation($request, $conversation);
@@ -135,15 +95,5 @@ class ChatController extends Controller
     private function event(string $name, mixed $data): StreamedEvent
     {
         return new StreamedEvent($name, json_encode($data, JSON_UNESCAPED_UNICODE));
-    }
-
-    private function clientId(Request $request): string
-    {
-        return $request->cookie('client_id') ?? abort(401, 'client_id 쿠키가 없습니다. 페이지를 새로고침하세요.');
-    }
-
-    private function authorizeConversation(Request $request, Conversation $conversation): void
-    {
-        abort_unless($conversation->client_id === $this->clientId($request), 404);
     }
 }

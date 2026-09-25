@@ -4,7 +4,6 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="light dark">
-  <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>규칙 설명 챗봇</title>
   {{-- 파일 수정 시각을 주소에 붙여 수정 후에도 브라우저가 예전 캐시를 쓰지 않도록 처리 --}}
   <link rel="stylesheet" href="{{ asset('css/app.css') }}?v={{ filemtime(public_path('css/app.css')) }}">

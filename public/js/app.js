@@ -32,20 +32,16 @@ function listTime(value) {
 
 const $ = (id) => document.getElementById(id);
 
-// Laravel이 오류를 JSON으로 돌려주도록 Accept 지정, POST·DELETE용 CSRF 토큰 포함
 function headers(extra = {}) {
-  return {
-    Accept: "application/json",
-    "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]').content,
-    ...extra,
-  };
+  return { Accept: "application/json", ...extra };
 }
 
+// API 응답 형식 {msg, data}: 실패 시 msg를 오류 메시지로, 성공 시 data만 반환
 async function api(url, options = {}) {
   const res = await fetch(url, { ...options, headers: headers(options.headers) });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.message || `요청 실패 (${res.status})`);
-  return data;
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.msg || `요청 실패 (${res.status})`);
+  return body.data;
 }
 
 function setStatus(el, text, isError = false) {
@@ -131,7 +127,7 @@ async function renameConversation(id, title) {
 async function loadDocuments() {
   const list = $("document-list");
   list.replaceChildren();
-  const documents = await api("/api/documents");
+  const { list: documents } = await api("/api/documents");
   state.documents = documents;
   if (!documents.length) {
     const li = document.createElement("li");
@@ -202,7 +198,7 @@ async function selectDocument(id) {
 async function loadConversations() {
   const list = $("conversation-list");
   list.replaceChildren();
-  const conversations = await api(`/api/documents/${state.documentId}/conversations`);
+  const { list: conversations } = await api(`/api/documents/${state.documentId}/conversations`);
   for (const conv of conversations) {
     const li = listItem(
       conv.title,
@@ -229,7 +225,7 @@ async function deleteConversation(conv) {
 
 async function selectConversation(id) {
   state.conversationId = id;
-  const messages = await api(`/api/conversations/${id}/messages`);
+  const { list: messages } = await api(`/api/conversations/${id}/messages`);
   // 응답을 기다리는 사이 다른 대화를 눌렀으면 늦게 온 이전 대화 결과는 무시
   if (state.conversationId !== id) return;
   clearMessages();
@@ -525,7 +521,7 @@ async function ask(event) {
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      throw new Error(data.message || `요청 실패 (${res.status})`);
+      throw new Error(data.msg || `요청 실패 (${res.status})`);
     }
 
     let citations = [];
