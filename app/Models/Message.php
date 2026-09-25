@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['role', 'content', 'citations', 'provider', 'model'])]
+#[Fillable(['role', 'content', 'citations', 'provider', 'model', 'elapsed_ms'])]
 class Message extends Model
 {
     protected function casts(): array

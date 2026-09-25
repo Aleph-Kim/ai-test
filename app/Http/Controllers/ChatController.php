@@ -76,12 +76,13 @@ class ChatController extends Controller
         $this->authorizeConversation($request, $conversation);
 
         return response()->json(
-            $conversation->messages()->orderBy('id')->get(['role', 'content', 'citations', 'provider', 'model', 'created_at'])
+            $conversation->messages()->orderBy('id')->get(['role', 'content', 'citations', 'provider', 'model', 'elapsed_ms', 'created_at'])
         );
     }
 
     public function ask(Request $request, Conversation $conversation): StreamedResponse
     {
+        $startedAt = hrtime(true);
         $this->authorizeConversation($request, $conversation);
         $question = $request->validate(['question' => ['required', 'string', 'max:2000']])['question'];
 
@@ -93,7 +94,7 @@ class ChatController extends Controller
         // 스트림 중 오류가 나도 질문은 남도록 먼저 저장
         $conversation->messages()->create(['role' => 'user', 'content' => $question]);
 
-        return response()->eventStream(function () use ($conversation, $question, $history) {
+        return response()->eventStream(function () use ($conversation, $question, $history, $startedAt) {
             // 웹 요청 기본 실행 제한(30초)에 걸리면 오류 이벤트 없이 강제 종료되므로 해제 (대기 한도는 STREAM_TIMEOUT)
             set_time_limit(0);
 
@@ -127,8 +128,9 @@ class ChatController extends Controller
                 'citations' => $citations,
                 'provider' => config('ai.default'),
                 'model' => config('ai.providers.'.config('ai.default').'.models.text.default'),
+                'elapsed_ms' => intdiv(hrtime(true) - $startedAt, 1_000_000),
             ]);
-            yield $this->event('done', ['created_at' => $message->created_at->toJSON()]);
+            yield $this->event('done', ['created_at' => $message->created_at->toJSON(), 'elapsed_ms' => $message->elapsed_ms]);
         }, endStreamWith: null);
     }
 

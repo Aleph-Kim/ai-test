@@ -188,7 +188,7 @@ async function selectConversation(id) {
   const messages = await api(`/api/conversations/${id}/messages`);
   clearMessages();
   for (const m of messages) {
-    const view = renderMessage(m.role, m.content, m.created_at);
+    const view = renderMessage(m.role, m.content, m.created_at, m.elapsed_ms);
     if (m.role === "assistant") view.setCitations(m.citations);
   }
   await loadConversations();
@@ -205,6 +205,15 @@ function timeElement(className, date, format) {
   el.className = className;
   el.dateTime = date.toISOString();
   el.textContent = format.format(date);
+  return el;
+}
+
+const formatSeconds = (ms) => `${(ms / 1000).toFixed(1)}초`;
+
+// 답변 시각 옆에 소요 시간 표시 (예: 오후 9:14 · 12.8초)
+function messageTime(createdAt, elapsedMs) {
+  const el = timeElement("message-time", new Date(createdAt), timeFormat);
+  if (elapsedMs != null) el.textContent += ` · ${formatSeconds(elapsedMs)}`;
   return el;
 }
 
@@ -230,7 +239,7 @@ function setMarkdown(el, text) {
 }
 
 // 질문은 textContent로만 출력, 답변은 정리된 마크다운 HTML로 출력
-function renderMessage(role, content, createdAt) {
+function renderMessage(role, content, createdAt, elapsedMs) {
   const date = createdAt ? new Date(createdAt) : null;
   if (date) appendDateDivider(date);
 
@@ -244,14 +253,14 @@ function renderMessage(role, content, createdAt) {
   if (role === "assistant") setMarkdown(body, content);
   else body.textContent = content;
   wrap.append(roleEl, body);
-  if (date) wrap.append(timeElement("message-time", date, timeFormat));
+  if (date) wrap.append(messageTime(createdAt, elapsedMs));
   $("messages").append(wrap);
   scrollToBottom();
 
   return {
     body,
-    setTime(createdAt) {
-      body.after(timeElement("message-time", new Date(createdAt), timeFormat));
+    setTime(createdAt, elapsedMs) {
+      body.after(messageTime(createdAt, elapsedMs));
     },
     setCitations(citations) {
       if (!citations.length) return;
@@ -276,13 +285,25 @@ function renderMessage(role, content, createdAt) {
   };
 }
 
+// 답변 첫 글자가 올 때까지 점 애니메이션과 경과 시간 표시, stop()으로 타이머 해제
 function typingIndicator() {
-  const el = document.createElement("span");
-  el.className = "typing";
-  el.setAttribute("role", "status");
-  el.setAttribute("aria-label", "답변 작성 중");
-  for (let i = 0; i < 3; i++) el.append(document.createElement("span"));
-  return el;
+  const wrap = document.createElement("span");
+  wrap.className = "loading";
+  wrap.setAttribute("role", "status");
+  wrap.setAttribute("aria-label", "답변 작성 중");
+  const dots = document.createElement("span");
+  dots.className = "typing";
+  for (let i = 0; i < 3; i++) dots.append(document.createElement("span"));
+  const elapsed = document.createElement("span");
+  elapsed.className = "elapsed";
+  elapsed.setAttribute("aria-hidden", "true");
+  wrap.append(dots, elapsed);
+
+  const startedAt = performance.now();
+  const tick = () => (elapsed.textContent = formatSeconds(performance.now() - startedAt));
+  tick();
+  const timer = setInterval(tick, 100);
+  return { el: wrap, stop: () => clearInterval(timer) };
 }
 
 async function readEvents(res, onEvent) {
@@ -319,6 +340,7 @@ async function ask(event) {
   button.disabled = true;
   setStatus(status, "");
   let answer = null;
+  let loading = null;
   try {
     if (!state.conversationId) {
       const conv = await api(`/api/documents/${state.documentId}/conversations`, {
@@ -334,7 +356,8 @@ async function ask(event) {
     input.value = "";
     answer = renderMessage("assistant", "");
     answer.body.classList.add("pending");
-    answer.body.append(typingIndicator());
+    loading = typingIndicator();
+    answer.body.append(loading.el);
 
     // EventSource는 GET만 지원하여 질문 본문 전송이 불가능하므로 fetch 스트림으로 수신
     const res = await fetch(`/api/conversations/${state.conversationId}/messages`, {
@@ -352,9 +375,10 @@ async function ask(event) {
     let raw = "";
     await readEvents(res, (type, data) => {
       if (type === "citations") citations = data;
-      if (type === "done") answer.setTime(data.created_at);
+      if (type === "done") answer.setTime(data.created_at, data.elapsed_ms);
       if (type === "delta") {
         if (answer.body.classList.contains("pending")) {
+          loading.stop();
           answer.body.classList.remove("pending");
           answer.body.textContent = "";
         }
@@ -380,6 +404,7 @@ async function ask(event) {
       answer.body.textContent = err.message;
     }
   } finally {
+    loading?.stop();
     button.disabled = false;
   }
 }
