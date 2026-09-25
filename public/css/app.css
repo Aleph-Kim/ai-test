@@ -385,7 +385,8 @@ input[type="file"] { width: 100%; font-size: 0.85rem; color: var(--secondary-lab
   font-size: 0.85rem;
 }
 
-.choice:hover { background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
+.choice:not(:disabled):hover { background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
+.choice:disabled { cursor: default; }
 
 .calculation { margin-top: 6px; max-width: 100%; font-size: 0.85rem; }
 .calculation summary { padding: 2px 4px; color: var(--accent); cursor: pointer; }

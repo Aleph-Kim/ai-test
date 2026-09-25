@@ -335,6 +335,8 @@ function setMarkdown(el, text) {
 function renderMessage(role, content, createdAt, elapsedMs) {
   const date = createdAt ? new Date(createdAt) : null;
   if (date) appendDateDivider(date);
+  // 이미 답한 사전 질문의 선택지를 다시 누르면 지난 질문의 답이 새로 전송되므로 비활성화
+  if (role === "user") $("messages").querySelectorAll(".choice").forEach((b) => (b.disabled = true));
 
   const wrap = document.createElement("article");
   wrap.className = `message ${role}`;
