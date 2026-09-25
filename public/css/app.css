@@ -463,7 +463,8 @@ input[type="file"] { width: 100%; font-size: 0.85rem; color: var(--secondary-lab
 
 @media (max-width: 767px) {
   .app { grid-template-columns: 1fr; grid-template-rows: auto 1fr; height: auto; min-height: 100dvh; }
-  .sidebar { border-right: 0; border-bottom: 1px solid var(--separator); overflow: visible; }
+  /* 대화가 쌓이면 목록이 채팅을 화면 밖으로 밀어내므로 높이를 제한하고 목록 안에서 스크롤 */
+  .sidebar { border-right: 0; border-bottom: 1px solid var(--separator); max-height: 40dvh; }
   .chat { min-height: 80dvh; }
   .message { max-width: 88%; }
   .row-button, .delete-button, .filled-button, .choice { min-height: 44px; }
