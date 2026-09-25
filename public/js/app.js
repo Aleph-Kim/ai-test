@@ -119,15 +119,19 @@ async function loadDocuments() {
       () => selectDocument(doc.id),
       (title) => renameDocument(doc.id, title),
     );
-    const del = document.createElement("button");
-    del.type = "button";
-    del.className = "delete-button";
-    del.textContent = "삭제";
-    del.setAttribute("aria-label", `${doc.title} 삭제`);
-    del.addEventListener("click", () => deleteDocument(doc));
-    li.append(del);
+    li.append(deleteButton(doc.title, () => deleteDocument(doc)));
     list.append(li);
   }
+}
+
+function deleteButton(label, onDelete) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "delete-button";
+  button.textContent = "삭제";
+  button.setAttribute("aria-label", `${label} 삭제`);
+  button.addEventListener("click", onDelete);
+  return button;
 }
 
 async function renameDocument(id, title) {
@@ -172,15 +176,25 @@ async function loadConversations() {
   list.replaceChildren();
   const conversations = await api(`/api/documents/${state.documentId}/conversations`);
   for (const conv of conversations) {
-    list.append(
-      listItem(
-        conv.title,
-        conv.id === state.conversationId,
-        () => selectConversation(conv.id),
-        (title) => renameConversation(conv.id, title),
-      ),
+    const li = listItem(
+      conv.title,
+      conv.id === state.conversationId,
+      () => selectConversation(conv.id),
+      (title) => renameConversation(conv.id, title),
     );
+    li.append(deleteButton(conv.title, () => deleteConversation(conv)));
+    list.append(li);
   }
+}
+
+async function deleteConversation(conv) {
+  if (!confirm(`"${conv.title}" 대화를 삭제할까요?`)) return;
+  await api(`/api/conversations/${conv.id}`, { method: "DELETE" });
+  if (conv.id === state.conversationId) {
+    state.conversationId = null;
+    clearMessages();
+  }
+  await loadConversations();
 }
 
 async function selectConversation(id) {

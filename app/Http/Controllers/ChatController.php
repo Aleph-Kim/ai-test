@@ -9,6 +9,7 @@ use App\Models\Embedding;
 use App\Models\Message;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Http\StreamedEvent;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -85,6 +86,14 @@ class ChatController extends Controller
         $conversation->update(['title' => trim($validated['title'])]);
 
         return response()->json(['title' => $conversation->title]);
+    }
+
+    public function destroyConversation(Request $request, Conversation $conversation): Response
+    {
+        $this->authorizeConversation($request, $conversation);
+        $conversation->delete();
+
+        return response()->noContent();
     }
 
     public function messages(Request $request, Conversation $conversation): JsonResponse
