@@ -76,7 +76,7 @@ class ChatController extends Controller
         $this->authorizeConversation($request, $conversation);
 
         return response()->json(
-            $conversation->messages()->orderBy('id')->get(['role', 'content', 'citations', 'provider', 'model'])
+            $conversation->messages()->orderBy('id')->get(['role', 'content', 'citations', 'provider', 'model', 'created_at'])
         );
     }
 

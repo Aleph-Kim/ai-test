@@ -296,6 +296,19 @@ input[type="file"] { width: 100%; font-size: 0.85rem; color: var(--secondary-lab
 .message.assistant .bubble { background: var(--bubble-in); color: var(--label); border-bottom-left-radius: 6px; }
 .bubble.pending { color: var(--secondary-label); }
 
+.message-time { margin-top: 3px; padding: 0 6px; font-size: 0.72rem; color: var(--secondary-label); font-variant-numeric: tabular-nums; }
+
+.date-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 16px 0 6px;
+  font-size: 0.75rem;
+  color: var(--secondary-label);
+}
+
+.date-divider::before, .date-divider::after { content: ""; flex: 1; border-top: 1px solid var(--separator); }
+
 .citations { margin-top: 6px; max-width: 100%; font-size: 0.85rem; }
 .citations summary { padding: 2px 4px; color: var(--accent); cursor: pointer; }
 .citations ul { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }

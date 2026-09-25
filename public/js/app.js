@@ -1,4 +1,7 @@
-const state = { documentId: null, conversationId: null, documents: [] };
+const state = { documentId: null, conversationId: null, documents: [], lastDate: null };
+
+const timeFormat = new Intl.DateTimeFormat("ko-KR", { hour: "numeric", minute: "2-digit" });
+const dateFormat = new Intl.DateTimeFormat("ko-KR", { dateStyle: "full" });
 
 const $ = (id) => document.getElementById(id);
 
@@ -147,7 +150,7 @@ async function deleteDocument(doc) {
     $("ask-form").hidden = true;
     $("chat-empty").hidden = false;
     $("chat-title").textContent = "문서를 선택하세요";
-    $("messages").replaceChildren();
+    clearMessages();
   }
   await loadDocuments();
 }
@@ -158,7 +161,7 @@ async function selectDocument(id) {
   $("conversation-section").hidden = false;
   $("ask-form").hidden = false;
   $("chat-empty").hidden = true;
-  $("messages").replaceChildren();
+  clearMessages();
   await Promise.all([loadDocuments(), loadConversations()]);
   $("chat-title").textContent = state.documents.find((d) => d.id === id)?.title ?? "";
   $("question").focus();
@@ -183,13 +186,37 @@ async function loadConversations() {
 async function selectConversation(id) {
   state.conversationId = id;
   const messages = await api(`/api/conversations/${id}/messages`);
-  $("messages").replaceChildren();
+  clearMessages();
   for (const m of messages) {
-    const view = renderMessage(m.role, m.content);
+    const view = renderMessage(m.role, m.content, m.role === "user" ? m.created_at : null);
     if (m.role === "assistant") view.setCitations(m.citations);
   }
   await loadConversations();
   scrollToBottom();
+}
+
+function clearMessages() {
+  $("messages").replaceChildren();
+  state.lastDate = null;
+}
+
+function timeElement(className, date, format) {
+  const el = document.createElement("time");
+  el.className = className;
+  el.dateTime = date.toISOString();
+  el.textContent = format.format(date);
+  return el;
+}
+
+// 직전 메시지와 날짜가 다를 때만 날짜 구분선 추가
+function appendDateDivider(date) {
+  const key = date.toDateString();
+  if (key === state.lastDate) return;
+  state.lastDate = key;
+  const divider = document.createElement("p");
+  divider.className = "date-divider";
+  divider.append(timeElement("", date, dateFormat));
+  $("messages").append(divider);
 }
 
 function scrollToBottom() {
@@ -198,7 +225,10 @@ function scrollToBottom() {
 }
 
 // LLM 답변과 업로드 원문에 포함된 태그 실행 방지를 위해 textContent로만 출력
-function renderMessage(role, content) {
+function renderMessage(role, content, createdAt) {
+  const date = createdAt ? new Date(createdAt) : null;
+  if (date) appendDateDivider(date);
+
   const wrap = document.createElement("article");
   wrap.className = `message ${role}`;
   const roleEl = document.createElement("span");
@@ -208,6 +238,7 @@ function renderMessage(role, content) {
   body.className = "bubble";
   body.textContent = content;
   wrap.append(roleEl, body);
+  if (date) wrap.append(timeElement("message-time", date, timeFormat));
   $("messages").append(wrap);
   scrollToBottom();
 
@@ -281,7 +312,7 @@ async function ask(event) {
       await loadConversations();
     }
 
-    renderMessage("user", question);
+    renderMessage("user", question, new Date().toISOString());
     input.value = "";
     answer = renderMessage("assistant", "답변 작성 중…");
     answer.body.classList.add("pending");
@@ -363,7 +394,7 @@ $("close-upload").addEventListener("click", () => $("upload-dialog").close());
 $("ask-form").addEventListener("submit", ask);
 $("new-conversation").addEventListener("click", () => {
   state.conversationId = null;
-  $("messages").replaceChildren();
+  clearMessages();
   loadConversations();
   $("question").focus();
 });
