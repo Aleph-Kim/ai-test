@@ -281,7 +281,13 @@ input[type="file"] { width: 100%; font-size: 0.85rem; color: var(--secondary-lab
   padding: 20px 16px;
 }
 
-.empty {
+/* 문서를 고른 뒤 아직 주고받은 메시지가 없으면 빈 화면 대신 질문 안내 표시 */
+.empty[hidden] + .messages:empty::before {
+  content: "궁금한 규정을 아래 입력칸에 질문하세요.";
+}
+
+.empty,
+.empty[hidden] + .messages:empty::before {
   margin: 20vh auto 0;
   text-align: center;
   color: var(--secondary-label);
