@@ -344,8 +344,7 @@ async function upload(event) {
   setStatus(status, "올리는 중…");
   try {
     const doc = await api("/api/documents", { method: "POST", body: new FormData(form) });
-    form.reset();
-    setStatus(status, "올렸습니다.");
+    $("upload-dialog").close();
     await selectDocument(doc.id);
   } catch (err) {
     setStatus(status, err.message, true);
@@ -355,6 +354,12 @@ async function upload(event) {
 }
 
 $("upload-form").addEventListener("submit", upload);
+$("open-upload").addEventListener("click", () => {
+  $("upload-form").reset();
+  setStatus($("upload-status"), "");
+  $("upload-dialog").showModal();
+});
+$("close-upload").addEventListener("click", () => $("upload-dialog").close());
 $("ask-form").addEventListener("submit", ask);
 $("new-conversation").addEventListener("click", () => {
   state.conversationId = null;
@@ -366,4 +371,9 @@ $("question").addEventListener("keydown", (e) => {
   if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !e.isComposing) $("ask-form").requestSubmit();
 });
 
-loadDocuments().catch((err) => setStatus($("upload-status"), err.message, true));
+loadDocuments().catch((err) => {
+  const li = document.createElement("li");
+  li.className = "empty-row";
+  li.textContent = err.message;
+  $("document-list").replaceChildren(li);
+});

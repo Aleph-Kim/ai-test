@@ -19,7 +19,10 @@
       </header>
 
       <section class="group">
-        <h2 class="group-title">문서</h2>
+        <div class="group-head">
+          <h2 class="group-title">문서</h2>
+          <button id="open-upload" type="button" class="icon-button" aria-label="문서 올리기" aria-haspopup="dialog">+</button>
+        </div>
         <ul id="document-list" class="list"></ul>
       </section>
 
@@ -29,18 +32,6 @@
           <button id="new-conversation" type="button" class="text-button">새 대화</button>
         </div>
         <ul id="conversation-list" class="list"></ul>
-      </section>
-
-      <section class="group upload">
-        <h2 class="group-title">문서 올리기</h2>
-        <form id="upload-form" class="card">
-          <label for="upload-title">제목</label>
-          <input id="upload-title" name="title" type="text" autocomplete="off" placeholder="비우면 파일명 사용">
-          <label for="upload-file">규칙 파일 (.txt, .md, UTF-8)</label>
-          <input id="upload-file" name="file" type="file" accept=".txt,.md">
-          <button type="submit" class="filled-button">올리기</button>
-          <p id="upload-status" class="status" aria-live="polite"></p>
-        </form>
       </section>
     </aside>
 
@@ -65,6 +56,21 @@
       </form>
     </main>
   </div>
+
+  <dialog id="upload-dialog" class="modal" aria-labelledby="upload-dialog-title">
+    <form id="upload-form">
+      <h2 id="upload-dialog-title">문서 올리기</h2>
+      <label for="upload-title">제목</label>
+      <input id="upload-title" name="title" type="text" autocomplete="off" placeholder="비우면 파일명 사용">
+      <label for="upload-file">규칙 파일 (.txt, .md, UTF-8)</label>
+      <input id="upload-file" name="file" type="file" accept=".txt,.md">
+      <p id="upload-status" class="status" aria-live="polite"></p>
+      <div class="modal-actions">
+        <button id="close-upload" type="button" class="plain-button">취소</button>
+        <button type="submit" class="filled-button">올리기</button>
+      </div>
+    </form>
+  </dialog>
 
   <script src="{{ asset('js/app.js') }}"></script>
 </body>
