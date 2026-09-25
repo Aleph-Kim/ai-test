@@ -162,16 +162,6 @@ button:disabled { cursor: progress; opacity: 0.55; }
 
 .delete-button:hover { color: var(--danger); }
 
-.text-button {
-  min-height: 32px;
-  padding: 0 6px;
-  border: 0;
-  background: transparent;
-  color: var(--accent);
-  font-size: 0.85rem;
-  font-weight: 500;
-}
-
 .icon-button {
   position: relative;
   width: 28px;

@@ -29,7 +29,7 @@
       <section id="conversation-section" class="group" hidden>
         <div class="group-head">
           <h2 class="group-title">대화</h2>
-          <button id="new-conversation" type="button" class="text-button">새 대화</button>
+          <button id="new-conversation" type="button" class="icon-button plus" aria-label="새 대화"></button>
         </div>
         <ul id="conversation-list" class="list"></ul>
       </section>
