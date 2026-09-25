@@ -1,12 +1,10 @@
-// streams: 이 페이지에서 답변 수신 중인 대화별 말풍선, viewToken: 대화 전환 시 이전 확인 요청 무효화용
+// streams: 답변 수신 중인 대화별 말풍선 (다른 대화에 갔다 돌아오면 다시 붙임)
 const state = {
   documentId: null,
   conversationId: null,
   documents: [],
   lastDate: null,
   streams: new Map(),
-  viewToken: 0,
-  polling: null,
 };
 
 const timeFormat = new Intl.DateTimeFormat("ko-KR", { hour: "numeric", minute: "2-digit" });
@@ -231,15 +229,9 @@ async function deleteConversation(conv) {
 
 async function selectConversation(id) {
   state.conversationId = id;
-  const token = ++state.viewToken;
-  const data = await api(`/api/conversations/${id}/messages`);
-  if (token !== state.viewToken) return;
-  renderConversation(id, data, token);
-  await loadConversations();
-}
-
-// 이 페이지에서 수신 중인 답변은 말풍선을 다시 붙이고, 새로고침 등으로 수신 중이 아니면 저장될 때까지 확인
-function renderConversation(id, { messages, answering }, token) {
+  const messages = await api(`/api/conversations/${id}/messages`);
+  // 응답을 기다리는 사이 다른 대화를 눌렀으면 늦게 온 이전 대화 결과는 무시
+  if (state.conversationId !== id) return;
   clearMessages();
   for (const m of messages) {
     const view = renderMessage(m.role, m.content, m.created_at, m.elapsed_ms);
@@ -251,41 +243,19 @@ function renderConversation(id, { messages, answering }, token) {
 
   const live = state.streams.get(id);
   if (live) $("messages").append(live);
-  else if (answering) waitForAnswer(id, token, messages.at(-1)?.created_at);
   updateComposer();
   scrollToBottom();
-}
-
-function waitForAnswer(id, token, since) {
-  const view = renderMessage("assistant", "");
-  view.body.classList.add("pending");
-  state.polling = typingIndicator(since ? new Date(since).getTime() : Date.now());
-  view.body.append(state.polling.el);
-
-  const poll = async () => {
-    if (token !== state.viewToken || state.conversationId !== id) return;
-    const data = await api(`/api/conversations/${id}/messages`).catch(() => null);
-    if (token !== state.viewToken || state.conversationId !== id) return;
-    if (data && !data.answering) {
-      renderConversation(id, data, token);
-      loadConversations();
-      return;
-    }
-    setTimeout(poll, 2000);
-  };
-  setTimeout(poll, 2000);
+  await loadConversations();
 }
 
 // 보고 있는 대화가 답변 중일 때만 전송 차단 (다른 대화는 질문 가능)
 function updateComposer() {
-  $("ask-button").disabled = state.streams.has(state.conversationId) || state.polling !== null;
+  $("ask-button").disabled = state.streams.has(state.conversationId);
 }
 
 function clearMessages() {
   $("messages").replaceChildren();
   state.lastDate = null;
-  state.polling?.stop();
-  state.polling = null;
 }
 
 function timeElement(className, date, format) {
@@ -439,7 +409,7 @@ function renderMessage(role, content, createdAt, elapsedMs) {
 }
 
 // 답변 첫 글자가 올 때까지 점 애니메이션과 경과 시간 표시, stop()으로 타이머 해제
-function typingIndicator(startedAt = Date.now()) {
+function typingIndicator() {
   const wrap = document.createElement("span");
   wrap.className = "loading";
   wrap.setAttribute("role", "status");
@@ -452,7 +422,8 @@ function typingIndicator(startedAt = Date.now()) {
   elapsed.setAttribute("aria-hidden", "true");
   wrap.append(dots, elapsed);
 
-  const tick = () => (elapsed.textContent = formatSeconds(Date.now() - startedAt));
+  const startedAt = performance.now();
+  const tick = () => (elapsed.textContent = formatSeconds(performance.now() - startedAt));
   tick();
   const timer = setInterval(tick, 100);
   return { el: wrap, stop: () => clearInterval(timer) };
