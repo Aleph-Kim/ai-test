@@ -85,7 +85,8 @@ h1, h2 { margin: 0; }
 .sidebar-header { padding: 0 8px; }
 .sidebar-header h1 { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.01em; }
 
-.group-head { display: flex; justify-content: space-between; align-items: center; padding-right: 4px; }
+.group-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; padding-right: 4px; }
+.group-head .group-title { padding-bottom: 0; }
 .group-title {
   padding: 0 8px 6px;
   font-size: 0.75rem;
@@ -172,15 +173,30 @@ button:disabled { cursor: progress; opacity: 0.55; }
 }
 
 .icon-button {
+  position: relative;
   width: 28px;
   height: 28px;
+  padding: 0;
   border: 0;
   border-radius: 50%;
   background: transparent;
   color: var(--accent);
-  font-size: 1.25rem;
-  line-height: 1;
 }
+
+/* 글꼴마다 "+" 글자 높이가 달라 원 중앙에서 어긋나므로 가상 요소로 그린 + 모양 사용 */
+.icon-button.plus::before, .icon-button.plus::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 12px;
+  height: 2px;
+  border-radius: 1px;
+  background: currentColor;
+  transform: translate(-50%, -50%);
+}
+
+.icon-button.plus::after { transform: translate(-50%, -50%) rotate(90deg); }
 
 .icon-button:hover { background: var(--fill); }
 

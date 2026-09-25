@@ -21,7 +21,7 @@
       <section class="group">
         <div class="group-head">
           <h2 class="group-title">문서</h2>
-          <button id="open-upload" type="button" class="icon-button" aria-label="문서 올리기" aria-haspopup="dialog">+</button>
+          <button id="open-upload" type="button" class="icon-button plus" aria-label="문서 올리기" aria-haspopup="dialog"></button>
         </div>
         <ul id="document-list" class="list"></ul>
       </section>
