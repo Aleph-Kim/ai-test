@@ -149,6 +149,7 @@ button:disabled { cursor: progress; opacity: 0.55; }
 }
 
 .row-button[aria-current="true"] { font-weight: 600; }
+.row-time { flex: none; padding: 0 4px; font-size: 0.75rem; color: var(--secondary-label); font-variant-numeric: tabular-nums; }
 
 .delete-button {
   flex: none;

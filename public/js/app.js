@@ -2,6 +2,26 @@ const state = { documentId: null, conversationId: null, documents: [], lastDate:
 
 const timeFormat = new Intl.DateTimeFormat("ko-KR", { hour: "numeric", minute: "2-digit" });
 const dateFormat = new Intl.DateTimeFormat("ko-KR", { dateStyle: "full" });
+const monthDayFormat = new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric" });
+const shortDateFormat = new Intl.DateTimeFormat("ko-KR", { year: "numeric", month: "numeric", day: "numeric" });
+
+// 대화 목록용 시간: 오늘은 시각, 어제는 "어제", 올해는 월일, 그 이전은 연월일
+function listTime(value) {
+  const date = new Date(value);
+  const now = new Date();
+  const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+  let text;
+  if (date.toDateString() === now.toDateString()) text = timeFormat.format(date);
+  else if (date.toDateString() === yesterday.toDateString()) text = "어제";
+  else if (date.getFullYear() === now.getFullYear()) text = monthDayFormat.format(date);
+  else text = shortDateFormat.format(date);
+
+  const el = document.createElement("time");
+  el.className = "row-time";
+  el.dateTime = date.toISOString();
+  el.textContent = text;
+  return el;
+}
 
 const $ = (id) => document.getElementById(id);
 
@@ -182,6 +202,7 @@ async function loadConversations() {
       () => selectConversation(conv.id),
       (title) => renameConversation(conv.id, title),
     );
+    if (conv.last_message_at) li.querySelector(".row-button").after(listTime(conv.last_message_at));
     li.append(deleteButton(conv.title, () => deleteConversation(conv)));
     list.append(li);
   }
@@ -471,6 +492,8 @@ async function ask(event) {
         setStatus(status, data, true);
       }
     });
+    // 마지막 채팅 시간과 목록 순서 갱신
+    loadConversations();
     if (!failed) {
       answer.setCitations(citations);
       answer.setClarifications(clarifications);

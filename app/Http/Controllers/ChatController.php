@@ -58,8 +58,12 @@ class ChatController extends Controller
         return response()->json(
             $document->conversations()
                 ->where('client_id', $this->clientId($request))
-                ->latest()
-                ->get(['id', 'title', 'created_at'])
+                ->select(['id', 'title', 'created_at'])
+                ->withMax('messages as last_message_at', 'created_at')
+                ->withCasts(['last_message_at' => 'datetime'])
+                ->orderByDesc('last_message_at')
+                ->orderByDesc('id')
+                ->get()
         );
     }
 
