@@ -23,7 +23,7 @@ function setStatus(el, text, isError = false) {
   el.classList.toggle("error", isError);
 }
 
-function listItem(label, current, onSelect) {
+function listItem(label, current, onSelect, onRename) {
   const li = document.createElement("li");
   const button = document.createElement("button");
   button.type = "button";
@@ -32,7 +32,70 @@ function listItem(label, current, onSelect) {
   button.setAttribute("aria-current", String(current));
   button.addEventListener("click", onSelect);
   li.append(button);
+
+  if (onRename) {
+    const edit = document.createElement("button");
+    edit.type = "button";
+    edit.className = "edit-button";
+    edit.textContent = "✎";
+    edit.setAttribute("aria-label", `${label} 이름 수정`);
+    edit.addEventListener("click", () => startRename(li, label, onRename));
+    li.append(edit);
+  }
   return li;
+}
+
+// 목록 항목을 입력칸으로 바꿔 이름 수정 (Enter 저장, Esc·포커스 이탈 시 취소)
+function startRename(li, label, onRename) {
+  const original = [...li.childNodes];
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "rename-input";
+  input.value = label;
+  input.maxLength = 255;
+  input.setAttribute("aria-label", "새 이름");
+  li.replaceChildren(input);
+  input.focus();
+  input.select();
+
+  let settled = false;
+  const cancel = () => {
+    if (settled) return;
+    settled = true;
+    li.replaceChildren(...original);
+  };
+
+  input.addEventListener("input", () => input.setCustomValidity(""));
+  input.addEventListener("blur", cancel);
+  input.addEventListener("keydown", async (e) => {
+    if (e.isComposing) return;
+    if (e.key === "Escape") cancel();
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    const title = input.value.trim();
+    if (!title || title === label) return cancel();
+
+    settled = true;
+    input.disabled = true;
+    try {
+      await onRename(title);
+    } catch (err) {
+      settled = false;
+      input.disabled = false;
+      input.focus();
+      input.setCustomValidity(err.message);
+      input.reportValidity();
+    }
+  });
+}
+
+async function renameConversation(id, title) {
+  await api(`/api/conversations/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title }),
+  });
+  await loadConversations();
 }
 
 async function loadDocuments() {
@@ -91,7 +154,14 @@ async function loadConversations() {
   list.replaceChildren();
   const conversations = await api(`/api/documents/${state.documentId}/conversations`);
   for (const conv of conversations) {
-    list.append(listItem(conv.title, conv.id === state.conversationId, () => selectConversation(conv.id)));
+    list.append(
+      listItem(
+        conv.title,
+        conv.id === state.conversationId,
+        () => selectConversation(conv.id),
+        (title) => renameConversation(conv.id, title),
+      ),
+    );
   }
 }
 

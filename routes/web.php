@@ -26,6 +26,7 @@ Route::prefix('api')->group(function () {
 
     Route::get('documents/{document}/conversations', [ChatController::class, 'conversations']);
     Route::post('documents/{document}/conversations', [ChatController::class, 'createConversation']);
+    Route::patch('conversations/{conversation}', [ChatController::class, 'renameConversation']);
     Route::get('conversations/{conversation}/messages', [ChatController::class, 'messages']);
     Route::post('conversations/{conversation}/messages', [ChatController::class, 'ask']);
 });

@@ -58,6 +58,19 @@ class ChatController extends Controller
         return response()->json(['id' => $conversation->id], 201);
     }
 
+    public function renameConversation(Request $request, Conversation $conversation): JsonResponse
+    {
+        $this->authorizeConversation($request, $conversation);
+        $validated = $request->validate(['title' => ['required', 'string', 'max:255']], [
+            'title.required' => '대화명을 입력하세요.',
+            'title.max' => '대화명은 255자 이하로 입력하세요.',
+        ]);
+
+        $conversation->update(['title' => trim($validated['title'])]);
+
+        return response()->json(['title' => $conversation->title]);
+    }
+
     public function messages(Request $request, Conversation $conversation): JsonResponse
     {
         $this->authorizeConversation($request, $conversation);

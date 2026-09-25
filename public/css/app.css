@@ -7,6 +7,7 @@
   --secondary-label: rgba(60, 60, 67, 0.64);
   --separator: rgba(60, 60, 67, 0.18);
   --fill: rgba(120, 120, 128, 0.12);
+  --fill-strong: rgba(120, 120, 128, 0.24);
   --accent: #0071e3;
   --bubble-in: #e9e9eb;
   --danger: #d70015;
@@ -23,6 +24,7 @@
     --secondary-label: rgba(235, 235, 245, 0.64);
     --separator: rgba(84, 84, 88, 0.6);
     --fill: rgba(118, 118, 128, 0.24);
+    --fill-strong: rgba(118, 118, 128, 0.4);
     --bubble-in: #26252a;
     --danger: #ff6961;
   }
@@ -96,6 +98,38 @@ h1, h2 { margin: 0; }
 .list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .list li { display: flex; align-items: center; border-radius: 8px; }
 .list li:has(button[aria-current="true"]) { background: var(--fill); }
+.list li:has(.edit-button):hover, .list li:has(.edit-button):focus-within { background: var(--fill-strong); }
+
+.edit-button {
+  flex: none;
+  min-height: 36px;
+  padding: 0 8px;
+  border: 0;
+  background: transparent;
+  color: var(--secondary-label);
+  opacity: 0;
+}
+
+.list li:hover .edit-button, .edit-button:focus-visible { opacity: 1; }
+.edit-button:hover { color: var(--accent); }
+
+/* 마우스 오버가 없는 터치 기기에서는 수정 아이콘 상시 표시 */
+@media (hover: none) {
+  .edit-button { opacity: 1; }
+}
+
+.rename-input {
+  flex: 1;
+  min-width: 0;
+  min-height: 36px;
+  padding: 6px 8px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--label);
+  font: inherit;
+  font-size: 16px;
+}
 .list .empty-row { padding: 6px 8px; font-size: 0.85rem; color: var(--secondary-label); }
 
 button { font: inherit; color: inherit; cursor: pointer; touch-action: manipulation; }
