@@ -322,9 +322,10 @@ input[type="file"] { width: 100%; font-size: 0.85rem; color: var(--secondary-lab
 .bubble th { background: var(--fill); font-weight: 600; }
 .bubble a { color: var(--accent); }
 
-.loading { display: inline-flex; align-items: center; gap: 8px; }
-.loading .elapsed { font-size: 0.8rem; font-variant-numeric: tabular-nums; }
-.typing { display: inline-flex; gap: 4px; padding: 6px 2px; }
+/* 글자 기준선 정렬로 아래로 밀리지 않도록 블록 flex로 두고, 높이를 한 줄 글자 높이(24px)에 맞춰 상하 가운데 정렬 */
+.loading { display: flex; align-items: center; gap: 8px; height: 24px; }
+.loading .elapsed { font-size: 0.8rem; line-height: 1; font-variant-numeric: tabular-nums; }
+.typing { display: flex; align-items: center; gap: 4px; }
 
 .typing span {
   width: 7px;
