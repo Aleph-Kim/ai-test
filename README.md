@@ -1,9 +1,9 @@
 # 규칙 설명 챗봇
 
-사칙·취업규칙 같은 규칙 문서(.txt, .md)를 올리면 조항 단위로 나눠 임베딩하고, 직원 질문에 관련 조항을 찾아 상황에 맞게 설명하는 채팅 서비스입니다.
+사칙·취업규칙 같은 규칙 문서(.txt, .md)를 올리면 조항 단위로 나눠 조항 전체와 항목별로 임베딩하고, 직원 질문에 관련 조항을 찾아 상황에 맞게 설명하는 채팅 서비스입니다.
 
 - PHP 8.3 / Laravel 13 / MariaDB 11.8 (벡터 검색)
-- AI: NVIDIA NIM API (채팅 `google/gemma-4-31b-it`, 임베딩 `nvidia/nemotron-3-embed-1b`)
+- AI: NVIDIA NIM API (채팅 `deepseek-ai/deepseek-v4.1-flash` 추론 끔, 임베딩 `nvidia/nemotron-3-embed-1b`)
 
 ## DB 준비
 
