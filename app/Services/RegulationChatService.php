@@ -198,17 +198,22 @@ class RegulationChatService
      */
     private function citations(int $documentId, string $content, Collection $found): array
     {
-        // "제25조(연차유급휴가)"처럼 제목까지 쓰거나 "제25조"만 써도 같은 조항으로 찾도록 조 번호로 비교
-        preg_match_all('/제\s*\d+\s*조(?:의\s*\d+)?/u', $content, $cited);
-        $articles = array_values(array_unique(array_map(fn (string $a) => preg_replace('/\s+/u', '', $a), $cited[0])));
-        if ($articles === []) {
+        preg_match_all('/제\s*\d+\s*조(?:의\s*\d+)?(?:\s*\([^)\n]*\))?/u', $content, $cited);
+        if ($cited[0] === []) {
             return $found->where('score', '>=', config('rag.min_similarity'))->values()->all();
         }
-        $articleOf = fn (string $label) => preg_match('/^제\s*\d+\s*조(?:의\s*\d+)?/u', $label, $m) ? preg_replace('/\s+/u', '', $m[0]) : null;
+        $normalize = fn (string $text) => preg_replace('/\s+/u', '', $text);
+        $articleOf = fn (string $label) => preg_match('/^제\d+조(?:의\d+)?/u', $normalize($label), $m) ? $m[0] : null;
+        $chunks = Chunk::where('document_id', $documentId)->orderBy('seq')->get(['id', 'label', 'text']);
 
-        return Chunk::where('document_id', $documentId)->orderBy('seq')->get(['id', 'label', 'text'])
-            ->filter(fn (Chunk $chunk) => in_array($articleOf($chunk->label), $articles, true))
-            ->sortBy(fn (Chunk $chunk) => array_search($articleOf($chunk->label), $articles, true))
+        // 같은 조 번호가 두 번 쓰인 문서가 있어 제목까지 일치하면 그 조항만, 제목이 없거나 다르게 쓰면 같은 번호 조항 전부
+        $picked = collect();
+        foreach ($cited[0] as $mention) {
+            $exact = $chunks->filter(fn (Chunk $chunk) => $normalize($chunk->label) === $normalize($mention));
+            $picked = $picked->merge($exact->isNotEmpty() ? $exact : $chunks->filter(fn (Chunk $chunk) => $articleOf($chunk->label) === $articleOf($mention)));
+        }
+
+        return $picked->unique('id')
             ->map(fn (Chunk $chunk) => [
                 'chunk_id' => $chunk->id,
                 'label' => $chunk->label,
