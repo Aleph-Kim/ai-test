@@ -42,7 +42,7 @@ class DocumentController extends Controller
 
         // 임베딩 성공 후에만 저장하여 실패 시 문서가 남지 않도록 처리
         try {
-            $vectors = $embeddings->embedPassages(array_column($chunks, 'text'));
+            $vectors = $embeddings->embedChunkPassages(array_map(fn (array $chunk) => Chunk::passages($chunk['label'], $chunk['text']), $chunks));
         } catch (Throwable $e) {
             $message = $this->aiFailure($e, '조항 임베딩', ['filename' => $file->getClientOriginalName()]);
 
@@ -57,11 +57,15 @@ class DocumentController extends Controller
             ]);
 
             foreach ($chunks as $seq => $chunk) {
-                $document->chunks()->create(['seq' => $seq, ...$chunk])->embeddings()->create([
-                    'provider' => NvidiaEmbeddingService::PROVIDER,
-                    'model' => $embeddings->model(),
-                    'vector' => $vectors[$seq],
-                ]);
+                $created = $document->chunks()->create(['seq' => $seq, ...$chunk]);
+                foreach ($vectors[$seq] as $part => $vector) {
+                    $created->embeddings()->create([
+                        'provider' => NvidiaEmbeddingService::PROVIDER,
+                        'model' => $embeddings->model(),
+                        'part' => $part,
+                        'vector' => $vector,
+                    ]);
+                }
             }
 
             return $document;

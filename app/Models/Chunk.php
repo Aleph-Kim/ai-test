@@ -59,6 +59,22 @@ class Chunk extends Model
     }
 
     /**
+     * 임베딩할 텍스트 목록: [조항 전체, 항·호별 텍스트...] (항목이 하나뿐이면 조항 전체만)
+     * 14개 항목이 묶인 복무의무 조항처럼 긴 조항은 전체 벡터가 흐려져 항목 하나만 묻는 질문으로 찾기 어려움
+     *
+     * @return list<string>
+     */
+    public static function passages(string $label, string $text): array
+    {
+        // ①②… 앞과 줄 맨 앞 "1." 앞에서 나누고, 조항 머리말(첫 조각)은 전체 벡터에 이미 담겨 제외
+        $items = array_slice(preg_split('/(?=[\x{2460}-\x{2473}])|(?=^[ \t]*\d+\.\s)/mu', $text), 1);
+        $items = array_values(array_filter(array_map('trim', $items), fn (string $item) => mb_strlen($item) >= 5));
+
+        // 항목만으로는 어느 조항인지 알 수 없어 조항 라벨을 앞에 붙임
+        return count($items) < 2 ? [$text] : [$text, ...array_map(fn (string $item) => "{$label} {$item}", $items)];
+    }
+
+    /**
      * 조항 본문에 딸려 온 장·절·부칙 제목 줄 제거
      */
     public static function removeHeadings(string $text): string

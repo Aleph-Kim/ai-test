@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Casts\AsVector;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['chunk_id', 'provider', 'model', 'vector'])]
+#[Fillable(['chunk_id', 'provider', 'model', 'part', 'vector'])]
 class Embedding extends Model
 {
     public $timestamps = false;

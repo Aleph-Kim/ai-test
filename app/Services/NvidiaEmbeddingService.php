@@ -33,6 +33,25 @@ class NvidiaEmbeddingService
     }
 
     /**
+     * 조항별 임베딩 텍스트 목록을 한 번에 임베딩한 뒤 조항별로 다시 묶음 (입력 순서 유지)
+     *
+     * @param  list<list<string>>  $passagesPerChunk
+     * @return list<list<array>>
+     */
+    public function embedChunkPassages(array $passagesPerChunk): array
+    {
+        $vectors = $this->embedPassages(array_merge(...$passagesPerChunk));
+        $result = [];
+        $offset = 0;
+        foreach ($passagesPerChunk as $passages) {
+            $result[] = array_slice($vectors, $offset, count($passages));
+            $offset += count($passages);
+        }
+
+        return $result;
+    }
+
+    /**
      * NVIDIA NIM API 배치 호출 및 인덱스 순서 복원
      */
     private function embed(array $texts, string $inputType): array

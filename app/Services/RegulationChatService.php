@@ -164,9 +164,11 @@ class RegulationChatService
             ->whereDoesntHave('embeddings', fn ($q) => $q->where('provider', $provider)->where('model', $model))
             ->get();
         if ($missing->isNotEmpty()) {
-            $vectors = $this->embeddings->embedPassages($missing->pluck('text')->all());
+            $vectors = $this->embeddings->embedChunkPassages($missing->map(fn (Chunk $chunk) => Chunk::passages($chunk->label, $chunk->text))->values()->all());
             foreach ($missing->values() as $i => $chunk) {
-                $chunk->embeddings()->create(['provider' => $provider, 'model' => $model, 'vector' => $vectors[$i]]);
+                foreach ($vectors[$i] as $part => $vector) {
+                    $chunk->embeddings()->create(['provider' => $provider, 'model' => $model, 'part' => $part, 'vector' => $vector]);
+                }
             }
         }
 
@@ -180,8 +182,12 @@ class RegulationChatService
             ->select('chunks.id as chunk_id', 'chunks.label', 'chunks.text')
             ->selectVectorDistance('embeddings.vector', $query, 'distance')
             ->orderByVectorDistance('embeddings.vector', $query)
-            ->limit(config('rag.top_k'))
+            // 한 조항에 벡터가 여러 개(전체·항목별)라 넉넉히 가져온 뒤 조항당 가장 가까운 것만 남김
+            ->limit(config('rag.top_k') * 5)
             ->get()
+            ->unique('chunk_id')
+            ->take(config('rag.top_k'))
+            ->values()
             ->map(fn (object $row) => [
                 'chunk_id' => $row->chunk_id,
                 'label' => $row->label,
